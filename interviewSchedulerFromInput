@@ -1,7 +1,6 @@
 from __future__ import annotations
-from datetime import datetime, time, timedelta
-from random import seed as setRandomSeed
-from typing import List
+from datetime import datetime, timedelta
+from typing import List, Set, Dict
 
 def timesIntersect(time1: datetime, length1: timedelta, time2: datetime, length2: timedelta):
     latestStart = max(time1, time2)
@@ -14,7 +13,7 @@ class Company:
         self.name = name
         self.rooms = []
 
-    def addCompanyRoom(self, times: List[datetime], length: timedelta, candidates: List[Attendee]):
+    def addCompanyRoom(self, times: list[datetime], length: timedelta, candidates: list[Attendee]):
         self.rooms.append(CompanyRoom(self, times, length, candidates))
         return self
 
@@ -24,7 +23,7 @@ class Company:
     def hasAttendee(self, attendee: Attendee) -> bool:
         return any(room.hasAttendee(attendee) for room in self.rooms)
 
-    def getAppointments(self) -> List[Appointment]:
+    def getAppointments(self) -> list[Appointment]:
         apps = []
         for room in self.rooms:
             apps.extend(room.appointments)
@@ -47,7 +46,7 @@ def hasOtherAppsAtCompany(att: Attendee, company: Company):
 
 class CompanyRoom:
 
-    def __init__(self, company, times: List[datetime], length: timedelta, candidates: List[Attendee]):
+    def __init__(self, company, times: list[datetime], length: timedelta, candidates: list[Attendee]):
         self.roomNo = len(company.rooms) + 1
         self.company = company
         self.times = times
@@ -142,7 +141,7 @@ class CompanyPreference:
 
 class Attendee:
 
-    def __init__(self, uid: int, prefs: List[CompanyPreference], commitments: List[TimeInterval]):
+    def __init__(self, uid: int, prefs: list[CompanyPreference], commitments: list[TimeInterval]):
         self.uid = uid
         prefs.sort(key = lambda ap: -ap.pref)
         self.prefsLst = prefs
@@ -158,102 +157,147 @@ class Attendee:
     def isBusy(self, timeInterval: TimeInterval) -> bool:
         return any(commit.isIntersecting(timeInterval) for commit in self.commitments)
 
-interviewDaysNotSorted = []
-with open('interviewDays.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        line = line.strip().strip('\ufeff')
-        interval = TimeInterval.fromStr(*line.split(','))
 
-        assert not any(interval.isIntersecting(t) for t in interviewDaysNotSorted), "interview times overlap"
-        interviewDaysNotSorted.append(interval)
-interviewDays = sorted(interviewDaysNotSorted, key=lambda t: t.time)
+#interviewDays = []
+def readInterviewDays(fn: str, interviewDays: list[TimeInterval]):
+    interviewDays.clear()
 
-companyNames = set()
-with open('companyList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        name = line.strip().strip('\ufeff')
-        assert(name not in companyNames)
-        companyNames.add(name)
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            line = line.strip().strip('\ufeff')
+            interval = TimeInterval.fromStr(*line.split(','))
 
-companyRoomNames = {n: set() for n in companyNames}
+            assert not any(interval.isIntersecting(t) for t in interviewDays)
+            interviewDays.append(interval)
+    interviewDays.sort(key=lambda t: t.time)
+
+#companyNames = set()
+def readCompanyNames(fn: str, companyNames: set[str]):
+    companyNames.clear()
+
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            name = line.strip().strip('\ufeff')
+            assert(name not in companyNames)
+            companyNames.add(name)
+"""
+companyRoomNames = {}
 roomLengths = {}
-with open('companyRoomsList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        line = line.strip().strip('\ufeff')
-        companyName, roomName, length = line.split(',')
-
-        assert companyName in companyRoomNames
-        assert roomName not in companyRoomNames[companyName]
-        assert length.isdigit()
-        companyRoomNames[companyName].add(roomName)
-        roomLengths[roomName] = int(length)
-        
 roomNames = set()
-for names in companyRoomNames.values():
-    roomNames = roomNames.union(names)
+"""
+def readRoomNames(fn: str, companyNames: set[str], companyRoomNames: dict[str, set[str]], roomLengths: dict[str, int], roomNames: set[str]):
+    for obj in (companyRoomNames, roomLengths, roomNames):
+        obj.clear()
+    
+    for n in companyNames:
+        companyRoomNames[n] = set()
 
-companyRoomBreaks = {n: [] for n in roomNames}
-with open('companyBreakList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        line = line.strip().strip('\ufeff')
-        roomName, startStr, endStr = line.split(',')
-        b = TimeInterval.fromStr(startStr, endStr)
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            line = line.strip().strip('\ufeff')
+            companyName, roomName, length = line.split(',')
 
-        assert roomName in companyRoomBreaks
-        assert all(not b.isIntersecting(b2) for b2 in companyRoomBreaks[roomName])
-        companyRoomBreaks[roomName].append(b)
+            assert companyName in companyRoomNames
+            assert roomName not in companyRoomNames[companyName]
+            assert length.isdigit()
+            companyRoomNames[companyName].add(roomName)
+            roomLengths[roomName] = int(length)
+
+    for names in companyRoomNames.values():
+        for name in names:
+            roomNames.add(name)
+
+#companyRoomBreaks = {}
+def readRoomBreaks(fn: str, interviewDays: list[TimeInterval], roomNames: set[str], companyRoomBreaks: dict[str, list[TimeInterval]]):
+    companyRoomBreaks.clear()
+
+    for n in roomNames:
+        companyRoomBreaks[n] = []
+
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            line = line.strip().strip('\ufeff')
+            roomName, startStr, endStr = line.split(',')
+            b = TimeInterval.fromStr(startStr, endStr)
+
+            assert roomName in companyRoomBreaks
+            assert any(b.isIntersecting(d) for d in interviewDays)
+            assert all(not b.isIntersecting(b2) for b2 in companyRoomBreaks[roomName])
+            companyRoomBreaks[roomName].append(b)
         
-attendeeIDs = set()
-with open('attendeesList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        attendeeID = line.strip().strip('\ufeff')
+#attendeeIDs = set()
+def readAttendeeNames(fn: str, attendeeIDs: set[str]):
+    attendeeIDs.clear()
 
-        assert attendeeID not in attendeeIDs
-        attendeeIDs.add(attendeeID)
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            attendeeID = line.strip().strip('\ufeff')
 
-attendeeBreaks = {a: [] for a in attendeeIDs}
-with open('attendeeBreaksList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        line = line.strip().strip('\ufeff')
-        attendeeID, startStr, endStr = line.split(',')
-        b = TimeInterval.fromStr(startStr, endStr)
+            assert attendeeID not in attendeeIDs
+            attendeeIDs.add(attendeeID)
 
-        assert attendeeID in attendeeBreaks
-        assert all(not b.isIntersecting(b2) for b2 in attendeeBreaks[attendeeID])
-        attendeeBreaks[attendeeID].append(b)
+#attendeeBreaks = {a: [] for a in attendeeIDs}
+def readAttendeeBreaks(fn: str, interviewDays: list[TimeInterval], attendeeIDs: set[str], attendeeBreaks: dict[str, list[TimeInterval]]):
 
-attendeePreferences = {a: {} for a in attendeeIDs}
-with open('attendeePreferencesList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        line = line.strip().strip('\ufeff')
-        attendeeID, companyName, pref = line.split(',')
+    attendeeBreaks.clear()
+    for a in attendeeIDs:
+        attendeeBreaks[a] = []
 
-        assert attendeeID in attendeePreferences
-        assert companyName in companyNames
-        assert companyName not in attendeePreferences[attendeeID]
-        assert str.isdigit(pref)
-        attendeePreferences[attendeeID][companyName] = int(pref)
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            line = line.strip().strip('\ufeff')
+            attendeeID, startStr, endStr = line.split(',')
+            b = TimeInterval.fromStr(startStr, endStr)
 
-roomCandidates = {a: set() for a in roomNames}
-with open('roomCandidatesList.csv', 'r', encoding='utf-8') as f:
-    f.readline() # skip header
-    for line in f:
-        line = line.strip().strip('\ufeff')
-        roomName, attendeeID = line.split(',')
+            assert attendeeID in attendeeBreaks
+            assert any(b.isIntersecting(d) for d in interviewDays)
+            assert all(not b.isIntersecting(b2) for b2 in attendeeBreaks[attendeeID])
+            attendeeBreaks[attendeeID].append(b)
 
-        assert roomName in roomCandidates
-        assert attendeeID in attendeeIDs
-        assert attendeeID not in roomCandidates[roomName]
-        roomCandidates[roomName].add(attendeeID)
+#attendeePreferences = {a: {} for a in attendeeIDs}
+def readAttendeePrefs(fn: str, companyNames: set[str], attendeeIDs: set[str], attendeePreferences: dict[str, dict[str, int]]):
 
-def getSomeTimes(mins: int, breaks: List[TimeInterval]) -> List[TimeInterval]:
+    attendeePreferences.clear()
+    for a in attendeeIDs:
+        attendeePreferences[a] = {}
+
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            line = line.strip().strip('\ufeff')
+            attendeeID, companyName, pref = line.split(',')
+
+            assert attendeeID in attendeePreferences
+            assert companyName in companyNames
+            assert companyName not in attendeePreferences[attendeeID]
+            assert str.isdigit(pref)
+            attendeePreferences[attendeeID][companyName] = int(pref)
+
+#roomCandidates = {a: set() for a in roomNames}
+def readRoomCandidates(fn: str, roomNames: set[str], attendeeIDs: set[str], roomCandidates: dict[str, set[str]]):
+
+    roomCandidates.clear()
+    for n in roomNames:
+        roomCandidates[n] = set()
+
+    with open(fn, 'r', encoding='utf-8') as f:
+        f.readline() # skip header
+        for line in f:
+            line = line.strip().strip('\ufeff')
+            roomName, attendeeID = line.split(',')
+
+            assert roomName in roomCandidates
+            assert attendeeID in attendeeIDs
+            assert attendeeID not in roomCandidates[roomName]
+            roomCandidates[roomName].add(attendeeID)
+
+def getSomeTimes(mins: int, breaks: list[TimeInterval]) -> list[TimeInterval]:
     times = []
 
     for timeInt in interviewDays:
@@ -286,292 +330,347 @@ def getSomeTimes(mins: int, breaks: List[TimeInterval]) -> List[TimeInterval]:
     return times
 
 
-companyNameToCompany = {name:Company(name) for name in companyNames}
-companies = list(companyNameToCompany.values())
+def setAttendeeAndCompanies(
+            companyNames: set[str], 
+            roomLengths: dict[str, int], 
+            companyRoomBreaks: dict[str, list[TimeInterval]], 
+            attendeeIDs: set[str], 
+            attendeePreferences: dict[str, dict[str, int]], 
+            attendeeBreaks: dict[str, list[TimeInterval]],
+            roomCandidates: dict[str, set[str]],
+            companies: list[Company], 
+            attendees: list[Attendee]
+        ):
+    for obj in (companies, attendees):
+        obj.clear()
 
-attendeeIDToAttendee = {}
-attendees = []
-for attId in attendeeIDs:
-    prefs = []
-    for companyName in companyNames:
-        pref = attendeePreferences[attId].get(companyName, 0)
-        prefs.append(CompanyPreference(companyNameToCompany[companyName], pref))
-    
-    att = Attendee(attId, prefs, attendeeBreaks[attId])
-    attendeeIDToAttendee[attId] = att
-    attendees.append(att)
+    companyNameToCompany = {name:Company(name) for name in companyNames}
+    for c in companyNameToCompany.values():
+        companies.append(c)
 
-for companyName,roomNames in companyRoomNames.items():
-    for roomName in roomNames:
-        company = companyNameToCompany[companyName]
-        times = getSomeTimes(roomLengths[roomName], companyRoomBreaks[roomName])
-        company.addCompanyRoom(
-            times, 
-            timedelta(minutes = roomLengths[roomName]), 
-            [attendeeIDToAttendee[attId] for attId in roomCandidates[roomName]]
-        )
+    attendeeIDToAttendee = {}
+    for attId in attendeeIDs:
+        prefs = []
+        for companyName in companyNames:
+            pref = attendeePreferences[attId].get(companyName, 0)
+            prefs.append(CompanyPreference(companyNameToCompany[companyName], pref))
+        
+        att = Attendee(attId, prefs, attendeeBreaks[attId])
+        attendeeIDToAttendee[attId] = att
+        attendees.append(att)
 
-print('done readin')
+    for companyName,roomNames in companyRoomNames.items():
+        for roomName in roomNames:
+            company = companyNameToCompany[companyName]
+            times = getSomeTimes(roomLengths[roomName], companyRoomBreaks[roomName])
+            company.addCompanyRoom(
+                times, 
+                timedelta(minutes = roomLengths[roomName]), 
+                [attendeeIDToAttendee[attId] for attId in roomCandidates[roomName]]
+            )
 
 getTime = lambda day, hour, minute: day + timedelta(hours=hour, minutes=minute)
 
-setRandomSeed(None)
-
-# maybe shuffle
-
-chosenAttendees = [
-    a for a in attendees 
-    if any(c.wantsAttendee(a) for c in companies)
-]
-    
-def getUtility():
-    return sum(sum([app.getUtility() for app in c.getAppointments()]) for c in companies)
-
-noApps = sum(len(c.getAppointments()) for c in companies)
-
-def getNoCompanies(att: Attendee) -> int:
-    return len([c for c in companies if c.wantsAttendee(att)])
-
-getDateStrFromApp = lambda app: app.time.isoformat()
-
-def getNoEmptyApps(time, length):
-    noEmptyApps = 0
-    for c in companies:
-        for app in c.getAppointments():
-            if app.isEmpty() and app.intersects(time, length):
-                noEmptyApps += 1
-    return noEmptyApps
-
-timeDeltaToMins = lambda time: time.total_seconds() / 60
-
-printColLen = 12
-firstColLen = 150
-timeColLen = 24
-timeColMinutes = 60
-def printApps():
-    formatCol = lambda s: s.rjust(printColLen, ' ')
-    
-    times = [timeInt.time for timeInt in getSomeTimes(timeColMinutes, [])]
-    timeStrs = [t.strftime("%b %d %H:%M").center(timeColLen - 1, ' ') for t in times]
-
-    headerRow = (firstColLen * ' ') + "|" + "|".join([formatCol(c) for c in  timeStrs]) + "|"
-    print(headerRow)
-    print('-'*len(headerRow))
-
-    timeToLength = lambda time: int((timeDeltaToMins(time) / timeColMinutes) * timeColLen)
-
-    for c in companies:
-        for room in c.rooms:
-            firstCol = f'{str(room)} ({",".join(str(c.uid) for c in room.candidates)})'.rjust(firstColLen, ' ')
-            restOfCols = ' ' * (timeColLen * len(timeStrs))
-            for app in sorted(room.appointments, key=lambda a: a.time.timestamp()):
-                startIndex, i = -1, 0
-                assert(min(times) <= app.time < max(times) + timedelta(minutes=timeColMinutes))
-                while i < len(times):
-                    if app.time == times[i]:
-                        startIndex = (i * timeColLen) + timeToLength(app.time - times[i])
-                        break
-                    if i == len(times) - 1 or app.time < times[i+1]:
-                        startIndex = (i * timeColLen) + timeToLength(app.time - times[i])
-                        break
-                    i += 1
-                lengthIndex = timeToLength(app.length)
-                endIndex = startIndex + lengthIndex
-                #content = str(app.time.strftime('%H:%M')).center(lengthIndex-2, '-') if not app.isEmpty() else 'x' * (lengthIndex-2)
-                content = str(app.attendee.uid).center(lengthIndex-2, '-') if not app.isEmpty() else 'x' * (lengthIndex-2)
-                content = '|' + content + '|'
-                assert(restOfCols[startIndex:endIndex] == (' '*len(content)))
-                restOfCols = restOfCols[:startIndex] + content + restOfCols[endIndex:]
-
-            print(firstCol + '|' + restOfCols)
-            
-    print('')
-
-def canSwapBoth(app1, att1, app2, att2):
-    assert(not(app1 is None and app2 is None))
-    return app2 is None or app2.canSwap(att1) and (app1 is None or app1.canSwap(att2))
-
-def swapBoth(app1, att1, app2, att2):
-    assert(canSwapBoth(app1, att1, app2, att2))
-    if app2:
-        app2.swap(att1)
-    if app1:
-        app1.swap(att2)
-
-def tryMatchEveryone(atts: List[Attendee]):
-
-    atts = sorted(atts, key = lambda att: -len(att.commitments))
-    noCompaniesCache = {a.uid: getNoCompanies(a) for a in atts}
-
-    while True:
-        changed = False
-
-        for i in reversed(range(1, max([getNoCompanies(a) for a in atts])+1)):
-            ith_atts = [a for a in atts if noCompaniesCache[a.uid]==i]
-            
-            while ith_atts:
-                newAtt = ith_atts.pop()
-
-                validApps = []
-                for c in companies:
-                    if c.wantsAttendee(newAtt):
-                        for app in c.getAppointments():
-                            if app.isEmpty() and app.canSwap(newAtt):
-                                validApps.append(app)
-                if validApps:
-                    app = max(validApps, key=lambda app: (
-                            getNoEmptyApps(app.time, app.length), 
-                            newAtt.getPref(app.company)
-                        )
-                        # choose the least busy spot with the highest preference
-                    )
-                    app.swap(newAtt)
-                    #print('free appointments:', sum([len([app for app in c.getAppointments() if app.isEmpty()]) for c in companies]))
-                    changed = True
-                    #printApps()
-
-        if not changed:
-            break
-
-print("start:", datetime.now().strftime("%H:%M:%S"))
-tryMatchEveryone(chosenAttendees)
-print("stop:", datetime.now().strftime("%H:%M:%S"))
-printApps()
-print(
-    "candidates:", len(chosenAttendees),
-    "spots:", noApps,
-    "filled:", sum([len([app for app in c.getAppointments() if not app.isEmpty()]) for c in companies])
-)
-
-def printAtts():
-    assigned = 0
-    total = 0
-    feasibleTotal = 0
-
-    for att in sorted(chosenAttendees,key = lambda att: int(att.uid)):
-
-        attCompaniesAccepted = [c for c in companies if c.hasAttendee(att)]
-        attCompanies = [c for c in companies if c.wantsAttendee(att)]
-        attCompaniesFeasible = [c for c in companies if c.wantsAttendee(att) and (c.hasAttendee(att) or any(app.isEmpty() for app in c.getAppointments()))]
-        # attCompaniesFeasible excludes companies that are full
-
-        assigned += len(attCompaniesAccepted)
-        total += len(attCompanies)
-        feasibleTotal += len(attCompaniesFeasible)
-
-        attStr = (
-            f'{str(att.uid).rjust(3, " ")}: '
-            + f'{str([c.name + ("*" if c not in attCompaniesAccepted else "") for c in attCompanies])} '
-        )
-        if att.commitments:
-            attStr += f'commitments: {str(att.commitments)}'
-        print(attStr)
-
-    print(f'avg appointments: {assigned/len(attendees)}/{feasibleTotal/len(attendees)}\nmatched: {assigned}/{total}\nfeasible matches: {assigned}/{feasibleTotal}')
-  
-printApps()
-printAtts()
-
-def getAttUtility(app, att):
-    return att.prefsDic[app.company] if att and app else 0
-
-def shouldSwap(app1, att1, app2, att2):
-    canSwap = (
-        (app1 is None or app1.canSwap(att2)) 
-        and (app2 is None or app2.canSwap(att1))
-    )
-    currentUtil = getAttUtility(app1, att1) + getAttUtility(app2, att2)
-    swapUtil = getAttUtility(app1, att2) + getAttUtility(app2, att1)
-    return canSwap and currentUtil < swapUtil # strictly less than
-
-def maxPref(atts):
-          
-    while True:
-
-        appAtts = []
-        for c in companies:
-            appAtts.extend([(app, app.attendee) for app in c.getAppointments() if not app.isEmpty()])
-        selectedAtts = set([att for app,att in appAtts])
-        notSelectedAtts = set(atts) - selectedAtts
-        appAtts.extend([(None, att) for att in notSelectedAtts])
-
-        changed = False
-
-        print("avg utility:", getUtility()/len(atts))
+def run(companies: list[Company], attendees: list[Attendee]):
+    chosenAttendees = [
+        a for a in attendees 
+        if any(c.wantsAttendee(a) for c in companies)
+    ]
         
-        i = 0
-        for i in range(len(appAtts)-1):
-            currentApp, currentAtt = appAtts[i]
-            for j in range(i+1, len(appAtts)):
-                existingApp, existingAtt = appAtts[j]
-                if (currentApp is None) and (existingApp is None): continue
-                if shouldSwap(currentApp, currentAtt, existingApp, existingAtt):
-                    print("swapped!")
-                    swapBoth(currentApp, currentAtt, existingApp, existingAtt)
-                    printApps()
-                    changed = True
-                    break
+    def getUtility():
+        return sum(sum([app.getUtility() for app in c.getAppointments()]) for c in companies)
 
-            if changed: break
-          
-        if not changed: break
-            
-maxPref(attendees)
-printApps()
-print(
-    "candidates:", len(chosenAttendees),
-    "spots:", noApps,
-    "filled:", sum([len([app for app in c.getAppointments() if not app.isEmpty()]) for c in companies])
-)
-#printAtts(ret)
+    noApps = sum(len(c.getAppointments()) for c in companies)
 
-def moveToStartOfDay():
-          
-    while True:
-        changed = False
+    def getNoCompanies(att: Attendee) -> int:
+        return len([c for c in companies if c.wantsAttendee(att)])
+
+    getDateStrFromApp = lambda app: app.time.isoformat()
+
+    def getNoEmptyApps(time, length):
+        noEmptyApps = 0
         for c in companies:
+            for app in c.getAppointments():
+                if app.isEmpty() and app.intersects(time, length):
+                    noEmptyApps += 1
+        return noEmptyApps
 
-            apps = sorted(c.getAppointments(), key=lambda app: app.time.timestamp())
+    timeDeltaToMins = lambda time: time.total_seconds() / 60
 
-            for i in range(len(apps)):
-                app1 = apps[i]
-                if not app1.isEmpty():
-                    continue
-                for j in reversed(range(i + 1, len(apps))):
-                    app2 = apps[j]
-                    if not app2.isEmpty():
-                        att2 = app2.attendee
-                        app2.swap(None)
-                        
-                        if app1.canSwap(att2):
-                            app1.swap(att2)
-                            changed = True
-                            #print(app1, "swapped", att.uid)
-                            #printApps()
+    printColLen = 12
+    firstColLen = 150
+    timeColLen = 24
+    timeColMinutes = 60
+    def printApps():
+        formatCol = lambda s: s.rjust(printColLen, ' ')
+        
+        times = [timeInt.time for timeInt in getSomeTimes(timeColMinutes, [])]
+        timeStrs = [t.strftime("%b %d %H:%M").center(timeColLen - 1, ' ') for t in times]
+
+        headerRow = (firstColLen * ' ') + "|" + "|".join([formatCol(c) for c in  timeStrs]) + "|"
+        print(headerRow)
+        print('-'*len(headerRow))
+
+        timeToLength = lambda time: int((timeDeltaToMins(time) / timeColMinutes) * timeColLen)
+
+        for c in companies:
+            for room in c.rooms:
+                firstCol = f'{str(room)} ({",".join(str(c.uid) for c in room.candidates)})'.rjust(firstColLen, ' ')
+                restOfCols = ' ' * (timeColLen * len(timeStrs))
+                for app in sorted(room.appointments, key=lambda a: a.time.timestamp()):
+                    startIndex, i = -1, 0
+                    assert(min(times) <= app.time < max(times) + timedelta(minutes=timeColMinutes))
+                    while i < len(times):
+                        if app.time == times[i]:
+                            startIndex = (i * timeColLen) + timeToLength(app.time - times[i])
                             break
-                        else:
-                            changed2 = False
+                        if i == len(times) - 1 or app.time < times[i+1]:
+                            startIndex = (i * timeColLen) + timeToLength(app.time - times[i])
+                            break
+                        i += 1
+                    lengthIndex = timeToLength(app.length)
+                    endIndex = startIndex + lengthIndex
+                    #content = str(app.time.strftime('%H:%M')).center(lengthIndex-2, '-') if not app.isEmpty() else 'x' * (lengthIndex-2)
+                    content = str(app.attendee.uid).center(lengthIndex-2, '-') if not app.isEmpty() else 'x' * (lengthIndex-2)
+                    content = '|' + content + '|'
+                    assert(restOfCols[startIndex:endIndex] == (' '*len(content)))
+                    restOfCols = restOfCols[:startIndex] + content + restOfCols[endIndex:]
 
-                            for k in range(i):
-                                app3 = apps[k]
-                                if app3.isEmpty(): continue
-                                att3 = app3.attendee
-                                app3.swap(None)
-                                if app1.canSwap(att3) and app3.canSwap(att2):
-                                    app1.swap(att3)
-                                    app3.swap(att2)
-                                    changed2 = True
-                                    break
-                                else:
-                                    app3.swap(att3)
-
-                            if not changed2:
-                                app2.swap(att2)
-                            else:
-                                changed = True
-                                break
+                print(firstCol + '|' + restOfCols)
                 
-        if not changed: break
+        print('')
+
+    def canSwapBoth(app1, att1, app2, att2):
+        assert(not(app1 is None and app2 is None))
+        return app2 is None or app2.canSwap(att1) and (app1 is None or app1.canSwap(att2))
+
+    def swapBoth(app1, att1, app2, att2):
+        assert(canSwapBoth(app1, att1, app2, att2))
+        if app2:
+            app2.swap(att1)
+        if app1:
+            app1.swap(att2)
+
+    def tryMatchEveryone(atts: list[Attendee]):
+
+        atts = sorted(atts, key = lambda att: -len(att.commitments))
+        noCompaniesCache = {a.uid: getNoCompanies(a) for a in atts}
+
+        while True:
+            changed = False
+
+            for i in reversed(range(1, max([getNoCompanies(a) for a in atts])+1)):
+                ith_atts = [a for a in atts if noCompaniesCache[a.uid]==i]
+                
+                while ith_atts:
+                    newAtt = ith_atts.pop()
+
+                    validApps = []
+                    for c in companies:
+                        if c.wantsAttendee(newAtt):
+                            for app in c.getAppointments():
+                                if app.isEmpty() and app.canSwap(newAtt):
+                                    validApps.append(app)
+                    if validApps:
+                        app = max(validApps, key=lambda app: (
+                                getNoEmptyApps(app.time, app.length), 
+                                newAtt.getPref(app.company)
+                            )
+                            # choose the least busy spot with the highest preference
+                        )
+                        app.swap(newAtt)
+                        #print('free appointments:', sum([len([app for app in c.getAppointments() if app.isEmpty()]) for c in companies]))
+                        changed = True
+                        #printApps()
+
+            if not changed:
+                break
+
+    print("start:", datetime.now().strftime("%H:%M:%S"))
+    tryMatchEveryone(chosenAttendees)
+    print("stop:", datetime.now().strftime("%H:%M:%S"))
+    printApps()
+    print(
+        "candidates:", len(chosenAttendees),
+        "spots:", noApps,
+        "filled:", sum([len([app for app in c.getAppointments() if not app.isEmpty()]) for c in companies])
+    )
+
+    def printAtts():
+        assigned = 0
+        total = 0
+        feasibleTotal = 0
+
+        for att in sorted(chosenAttendees,key = lambda att: int(att.uid)):
+
+            attCompaniesAccepted = [c for c in companies if c.hasAttendee(att)]
+            attCompanies = [c for c in companies if c.wantsAttendee(att)]
+            attCompaniesFeasible = [c for c in companies if c.wantsAttendee(att) and (c.hasAttendee(att) or any(app.isEmpty() for app in c.getAppointments()))]
+            # attCompaniesFeasible excludes companies that are full
+
+            assigned += len(attCompaniesAccepted)
+            total += len(attCompanies)
+            feasibleTotal += len(attCompaniesFeasible)
+
+            attStr = (
+                f'{str(att.uid).rjust(3, " ")}: '
+                + f'{str([c.name + ("*" if c not in attCompaniesAccepted else "") for c in attCompanies])} '
+            )
+            if att.commitments:
+                attStr += f'commitments: {str(att.commitments)}'
+            print(attStr)
+
+        print(f'avg appointments: {assigned/len(attendees)}/{feasibleTotal/len(attendees)}\nmatched: {assigned}/{total}\nfeasible matches: {assigned}/{feasibleTotal}')
+    
+    printApps()
+    printAtts()
+
+    def getAttUtility(app, att):
+        return att.prefsDic[app.company] if att and app else 0
+
+    def shouldSwap(app1, att1, app2, att2):
+        canSwap = (
+            (app1 is None or app1.canSwap(att2)) 
+            and (app2 is None or app2.canSwap(att1))
+        )
+        currentUtil = getAttUtility(app1, att1) + getAttUtility(app2, att2)
+        swapUtil = getAttUtility(app1, att2) + getAttUtility(app2, att1)
+        return canSwap and currentUtil < swapUtil # strictly less than
+
+    def maxPref(atts):
             
-moveToStartOfDay()
-printApps()
+        while True:
+
+            appAtts = []
+            for c in companies:
+                appAtts.extend([(app, app.attendee) for app in c.getAppointments() if not app.isEmpty()])
+            selectedAtts = set([att for app,att in appAtts])
+            notSelectedAtts = set(atts) - selectedAtts
+            appAtts.extend([(None, att) for att in notSelectedAtts])
+
+            changed = False
+
+            print("avg utility:", getUtility()/len(atts))
+            
+            i = 0
+            for i in range(len(appAtts)-1):
+                currentApp, currentAtt = appAtts[i]
+                for j in range(i+1, len(appAtts)):
+                    existingApp, existingAtt = appAtts[j]
+                    if (currentApp is None) and (existingApp is None): continue
+                    if shouldSwap(currentApp, currentAtt, existingApp, existingAtt):
+                        print("swapped!")
+                        swapBoth(currentApp, currentAtt, existingApp, existingAtt)
+                        printApps()
+                        changed = True
+                        break
+
+                if changed: break
+            
+            if not changed: break
+                
+    maxPref(attendees)
+    printApps()
+    print(
+        "candidates:", len(chosenAttendees),
+        "spots:", noApps,
+        "filled:", sum([len([app for app in c.getAppointments() if not app.isEmpty()]) for c in companies])
+    )
+    #printAtts(ret)
+
+    def moveToStartOfDay():
+            
+        while True:
+            changed = False
+            for c in companies:
+
+                apps = sorted(c.getAppointments(), key=lambda app: app.time.timestamp())
+
+                for i in range(len(apps)):
+                    app1 = apps[i]
+                    if not app1.isEmpty():
+                        continue
+                    for j in reversed(range(i + 1, len(apps))):
+                        app2 = apps[j]
+                        if not app2.isEmpty():
+                            att2 = app2.attendee
+                            app2.swap(None)
+                            
+                            if app1.canSwap(att2):
+                                app1.swap(att2)
+                                changed = True
+                                #print(app1, "swapped", att.uid)
+                                #printApps()
+                                break
+                            else:
+                                changed2 = False
+
+                                for k in range(i):
+                                    app3 = apps[k]
+                                    if app3.isEmpty(): continue
+                                    att3 = app3.attendee
+                                    app3.swap(None)
+                                    if app1.canSwap(att3) and app3.canSwap(att2):
+                                        app1.swap(att3)
+                                        app3.swap(att2)
+                                        changed2 = True
+                                        break
+                                    else:
+                                        app3.swap(att3)
+
+                                if not changed2:
+                                    app2.swap(att2)
+                                else:
+                                    changed = True
+                                    break
+                    
+            if not changed: break
+                
+    moveToStartOfDay()
+    printApps()
+
+if __name__ == "__main__":
+
+    interviewDays = []
+    readInterviewDays('interviewDays.csv', interviewDays)
+
+    companyNames = set()
+    readCompanyNames('companyList.csv', companyNames)
+
+    companyRoomNames = {}
+    roomLengths = {}
+    roomNames = set()
+    readRoomNames('companyRoomsList.csv', companyNames, companyRoomNames, roomLengths, roomNames)
+
+    companyRoomBreaks = {}
+    readRoomBreaks('companyBreakList.csv', interviewDays, roomNames, companyRoomBreaks)
+
+    attendeeIDs = set()
+    readAttendeeNames('attendeesList.csv', attendeeIDs)
+
+    attendeeBreaks = {}
+    readAttendeeBreaks('attendeeBreaksList.csv', interviewDays, attendeeIDs, attendeeBreaks)
+
+    attendeePreferences = {}
+    readAttendeePrefs('attendeePreferencesList.csv', companyNames, attendeeIDs, attendeePreferences)
+
+    roomCandidates = {}
+    readRoomCandidates('roomCandidatesList.csv', roomNames, attendeeIDs, roomCandidates)
+
+    companies = []
+    attendees = []
+    setAttendeeAndCompanies(
+        companyNames, 
+        roomLengths, 
+        companyRoomBreaks, 
+        attendeeIDs, 
+        attendeePreferences, 
+        attendeeBreaks,
+        roomCandidates,
+        companies, 
+        attendees
+    )
+
+    print('done readin')
+
+    run(companies, attendees)
