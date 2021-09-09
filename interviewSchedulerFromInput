@@ -1,11 +1,38 @@
 from __future__ import annotations
 from datetime import datetime, timedelta
-from typing import List, Set, Dict
+from typing import List, Set, Dict, Callable
+from os.path import exists
+import cProfile
 
 def timesIntersect(time1: datetime, length1: timedelta, time2: datetime, length2: timedelta):
     latestStart = max(time1, time2)
     earliestEnd = min(time1 + length1, time2 + length2)
     return latestStart < earliestEnd
+
+def getLines(doc: str) -> list[str]:
+    return [l for l in [line.strip().strip('\ufeff') for line in doc.split('\n')[1:]] if l]
+
+def getCols(doc: str, noCols: int) -> list[list[str]]:
+    cols = [l.split(',') for l in getLines(doc)]
+    ValidationException.throwIfFalse(
+        all(len(x)==noCols for x in cols),
+        f"invalid csv: must have exactly {noCols} columns"
+    )
+    return cols
+
+def getFileContents(fn: str) -> str:
+    ValidationException.throwIfFalse(
+        exists(fn), f"invalid file name ({fn}): does not exist"
+    )
+    with open(fn, 'r', encoding='utf-8') as f:
+        return f.read()
+
+class ValidationException(Exception):
+    
+    @staticmethod
+    def throwIfFalse(cond: bool, msg: str):
+        if not cond:
+            raise ValidationException(msg)
 
 class Company:
 
@@ -35,7 +62,7 @@ class Company:
 
 def hasOtherAppsAtTime(att: Attendee, time: datetime, length: timedelta):
     if att:
-        for c in companies:
+        for c in [c for c in companies if c.wantsAttendee(att)]:
             for app in c.getAppointments():
                 if app.isAttendee(att) and app.intersects(time, length):
                     return True
@@ -88,7 +115,10 @@ class TimeInterval:
 
     @staticmethod
     def fromStr(startStr: str, endStr: str):
-        d1, d2 = [datetime.fromisoformat(d) for d in (startStr, endStr)]
+        try:
+            d1, d2 = [datetime.fromisoformat(d) for d in (startStr, endStr)]
+        except ValueError:
+            raise ValidationException(f"invalid iso format dates: '{startStr}' and '{endStr}'")
         assert d1 < d2
         return TimeInterval(d1, d2-d1)        
 
@@ -159,143 +189,163 @@ class Attendee:
 
 
 #interviewDays = []
-def readInterviewDays(fn: str, interviewDays: list[TimeInterval]):
+def readInterviewDays(doc: str, interviewDays: list[TimeInterval]):
     interviewDays.clear()
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            line = line.strip().strip('\ufeff')
-            interval = TimeInterval.fromStr(*line.split(','))
+    for start,end in getCols(doc, 2):
+        interval = TimeInterval.fromStr(start, end)
 
-            assert not any(interval.isIntersecting(t) for t in interviewDays)
-            interviewDays.append(interval)
+        ValidationException.throwIfFalse(
+            not any(interval.isIntersecting(t) for t in interviewDays), 
+            f"invalid interview day: interview day {interval} intersects with other intervals {interviewDays}"
+        )
+        interviewDays.append(interval)
     interviewDays.sort(key=lambda t: t.time)
 
 #companyNames = set()
-def readCompanyNames(fn: str, companyNames: set[str]):
+def readCompanyNames(doc: str, companyNames: set[str]):
     companyNames.clear()
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            name = line.strip().strip('\ufeff')
-            assert(name not in companyNames)
-            companyNames.add(name)
-"""
-companyRoomNames = {}
-roomLengths = {}
-roomNames = set()
-"""
-def readRoomNames(fn: str, companyNames: set[str], companyRoomNames: dict[str, set[str]], roomLengths: dict[str, int], roomNames: set[str]):
+    for (name,) in getCols(doc, 1):
+        ValidationException.throwIfFalse(
+            name not in companyNames, 
+            f"duplicate company name ({name})"
+        )
+        companyNames.add(name)
+
+def readRoomNames(doc: str, companyNames: set[str], companyRoomNames: dict[str, set[str]], roomLengths: dict[str, int], roomNames: set[str]):
     for obj in (companyRoomNames, roomLengths, roomNames):
         obj.clear()
     
     for n in companyNames:
         companyRoomNames[n] = set()
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            line = line.strip().strip('\ufeff')
-            companyName, roomName, length = line.split(',')
+    for companyName,roomName,length in getCols(doc, 3):
 
-            assert companyName in companyRoomNames
-            assert roomName not in companyRoomNames[companyName]
-            assert length.isdigit()
-            companyRoomNames[companyName].add(roomName)
-            roomLengths[roomName] = int(length)
+        ValidationException.throwIfFalse(
+            companyName in companyRoomNames, 
+            f"invalid company name ({companyName})"
+        )
+        ValidationException.throwIfFalse(
+            roomName not in companyRoomNames[companyName], 
+            f"invalid room name ({roomName}) for company ({companyName})"
+        )
+        ValidationException.throwIfFalse(
+            length.isdigit and 0 < int(length), f"invalid length ({length}), must be positive integer"
+        )
+        companyRoomNames[companyName].add(roomName)
+        roomLengths[roomName] = int(length)
 
     for names in companyRoomNames.values():
         for name in names:
             roomNames.add(name)
 
 #companyRoomBreaks = {}
-def readRoomBreaks(fn: str, interviewDays: list[TimeInterval], roomNames: set[str], companyRoomBreaks: dict[str, list[TimeInterval]]):
+def readRoomBreaks(doc: str, interviewDays: list[TimeInterval], roomNames: set[str], companyRoomBreaks: dict[str, list[TimeInterval]]):
     companyRoomBreaks.clear()
 
     for n in roomNames:
         companyRoomBreaks[n] = []
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            line = line.strip().strip('\ufeff')
-            roomName, startStr, endStr = line.split(',')
-            b = TimeInterval.fromStr(startStr, endStr)
+    for roomName,startStr,endStr in getCols(doc, 3):
+        b = TimeInterval.fromStr(startStr, endStr)
 
-            assert roomName in companyRoomBreaks
-            assert any(b.isIntersecting(d) for d in interviewDays)
-            assert all(not b.isIntersecting(b2) for b2 in companyRoomBreaks[roomName])
-            companyRoomBreaks[roomName].append(b)
+        ValidationException.throwIfFalse(
+            roomName in roomNames, 
+            f"invalid room name ({roomName})"
+        )
+        ValidationException.throwIfFalse(
+            any(b.isIntersecting(d) for d in interviewDays), 
+            f"invalid break: break at {b} does not intersect with interview days: {interviewDays}"
+        )
+        ValidationException.throwIfFalse(
+            all(not b.isIntersecting(b2) for b2 in companyRoomBreaks[roomName]),
+            f"invalid break: break at {b} intersects with one of the other breaks {companyRoomBreaks[roomName]}"
+        )
+        companyRoomBreaks[roomName].append(b)
         
-#attendeeIDs = set()
-def readAttendeeNames(fn: str, attendeeIDs: set[str]):
+def readAttendeeNames(doc: str, attendeeIDs: set[str]):
     attendeeIDs.clear()
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            attendeeID = line.strip().strip('\ufeff')
+    for (attendeeID,) in getCols(doc, 1):
+        ValidationException.throwIfFalse(
+            attendeeID not in attendeeIDs,
+            f"duplicate attendee ID ({attendeeID})"
+        )
+        attendeeIDs.add(attendeeID)
 
-            assert attendeeID not in attendeeIDs
-            attendeeIDs.add(attendeeID)
-
-#attendeeBreaks = {a: [] for a in attendeeIDs}
-def readAttendeeBreaks(fn: str, interviewDays: list[TimeInterval], attendeeIDs: set[str], attendeeBreaks: dict[str, list[TimeInterval]]):
+def readAttendeeBreaks(doc: str, interviewDays: list[TimeInterval], attendeeIDs: set[str], attendeeBreaks: dict[str, list[TimeInterval]]):
 
     attendeeBreaks.clear()
     for a in attendeeIDs:
         attendeeBreaks[a] = []
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            line = line.strip().strip('\ufeff')
-            attendeeID, startStr, endStr = line.split(',')
-            b = TimeInterval.fromStr(startStr, endStr)
+    for attendeeID,startStr,endStr in getCols(doc, 3):
+        b = TimeInterval.fromStr(startStr, endStr)
 
-            assert attendeeID in attendeeBreaks
-            assert any(b.isIntersecting(d) for d in interviewDays)
-            assert all(not b.isIntersecting(b2) for b2 in attendeeBreaks[attendeeID])
-            attendeeBreaks[attendeeID].append(b)
+        ValidationException.throwIfFalse(
+            attendeeID in attendeeIDs,
+            f"invalid attendee ID ({attendeeID})"
+        )
+        ValidationException.throwIfFalse(
+            any(b.isIntersecting(d) for d in interviewDays),
+            f"invalid break: break at {b} does not intersect with interview days: {interviewDays}"
+        )
+        ValidationException.throwIfFalse(
+            all(not b.isIntersecting(b2) for b2 in attendeeBreaks[attendeeID]),
+            f"invalid break: break at {b} intersects with one of the other breaks {attendeeBreaks[attendeeID]}"
+        )
+        attendeeBreaks[attendeeID].append(b)
 
 #attendeePreferences = {a: {} for a in attendeeIDs}
-def readAttendeePrefs(fn: str, companyNames: set[str], attendeeIDs: set[str], attendeePreferences: dict[str, dict[str, int]]):
+def readAttendeePrefs(doc: str, companyNames: set[str], attendeeIDs: set[str], attendeePreferences: dict[str, dict[str, int]]):
 
     attendeePreferences.clear()
     for a in attendeeIDs:
         attendeePreferences[a] = {}
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            line = line.strip().strip('\ufeff')
-            attendeeID, companyName, pref = line.split(',')
+    for attendeeID,companyName,pref in getCols(doc, 3):
 
-            assert attendeeID in attendeePreferences
-            assert companyName in companyNames
-            assert companyName not in attendeePreferences[attendeeID]
-            assert str.isdigit(pref)
-            attendeePreferences[attendeeID][companyName] = int(pref)
+        ValidationException.throwIfFalse(
+            attendeeID in attendeeIDs,
+            f"invalid attendee ID ({attendeeID})"
+        )
+        ValidationException.throwIfFalse(
+            companyName in companyNames,
+            f"invalid company name ({companyName})"
+        )
+        ValidationException.throwIfFalse(
+            companyName not in attendeePreferences[attendeeID],
+            f"duplicate company preference for attendee '{attendeeID}' for company '{companyName}'"
+        )
+        ValidationException.throwIfFalse(
+            str.isdigit(pref) and 0 <= int(pref),
+            f"invalid preference ({pref}), must be non-negative integer"
+        )
+        attendeePreferences[attendeeID][companyName] = int(pref)
 
 #roomCandidates = {a: set() for a in roomNames}
-def readRoomCandidates(fn: str, roomNames: set[str], attendeeIDs: set[str], roomCandidates: dict[str, set[str]]):
+def readRoomCandidates(doc: str, roomNames: set[str], attendeeIDs: set[str], roomCandidates: dict[str, set[str]]):
 
     roomCandidates.clear()
     for n in roomNames:
         roomCandidates[n] = set()
 
-    with open(fn, 'r', encoding='utf-8') as f:
-        f.readline() # skip header
-        for line in f:
-            line = line.strip().strip('\ufeff')
-            roomName, attendeeID = line.split(',')
+    for roomName,attendeeID in getCols(doc, 2):
 
-            assert roomName in roomCandidates
-            assert attendeeID in attendeeIDs
-            assert attendeeID not in roomCandidates[roomName]
-            roomCandidates[roomName].add(attendeeID)
+        ValidationException.throwIfFalse(
+            attendeeID in attendeeIDs,
+            f"invalid attendee ID ({attendeeID})"
+        )
+        ValidationException.throwIfFalse(
+            roomName in roomCandidates,
+            f"invalid room name ({roomName})"
+        )
+        ValidationException.throwIfFalse(
+            attendeeID not in roomCandidates[roomName],
+            f"duplicate attendee for room candidate ({roomName})"
+        )
+        roomCandidates[roomName].add(attendeeID)
 
 def getSomeTimes(mins: int, breaks: list[TimeInterval]) -> list[TimeInterval]:
     times = []
@@ -385,8 +435,6 @@ def run(companies: list[Company], attendees: list[Attendee]):
     def getNoCompanies(att: Attendee) -> int:
         return len([c for c in companies if c.wantsAttendee(att)])
 
-    getDateStrFromApp = lambda app: app.time.isoformat()
-
     def getNoEmptyApps(time, length):
         noEmptyApps = 0
         for c in companies:
@@ -394,6 +442,27 @@ def run(companies: list[Company], attendees: list[Attendee]):
                 if app.isEmpty() and app.intersects(time, length):
                     noEmptyApps += 1
         return noEmptyApps
+
+    def getOverlappingApps(companies: list[Company], app: Appointment) -> set[Appointment]:
+        overlapping = set()
+        for c in companies:
+            for app2 in c.getAppointments():
+                if app != app2 and app.isIntersecting(app2):
+                    overlapping.add(app2)
+        return overlapping
+
+    def getEmptyAppsCache(companies: list[Company]) -> dict[Appointment: set[Appointment]]:
+        cache = {}
+        for c in companies:
+            for app in c.getAppointments():
+                cache[app] = getOverlappingApps(companies, app)
+        return cache
+
+    def updateEmptyAppsCache(cache: dict[Appointment: set[Appointment]], notEmptyApp: Appointment):
+        for app in cache[notEmptyApp]:
+            cache[app].remove(notEmptyApp)
+        cache.pop(notEmptyApp)
+
 
     timeDeltaToMins = lambda time: time.total_seconds() / 60
 
@@ -456,6 +525,8 @@ def run(companies: list[Company], attendees: list[Attendee]):
         atts = sorted(atts, key = lambda att: -len(att.commitments))
         noCompaniesCache = {a.uid: getNoCompanies(a) for a in atts}
 
+        emptyAppsCache = getEmptyAppsCache(companies)
+
         while True:
             changed = False
 
@@ -473,13 +544,14 @@ def run(companies: list[Company], attendees: list[Attendee]):
                                     validApps.append(app)
                     if validApps:
                         app = max(validApps, key=lambda app: (
-                                getNoEmptyApps(app.time, app.length), 
+                                len(emptyAppsCache[app]), 
                                 newAtt.getPref(app.company)
                             )
                             # choose the least busy spot with the highest preference
                         )
                         app.swap(newAtt)
                         #print('free appointments:', sum([len([app for app in c.getAppointments() if app.isEmpty()]) for c in companies]))
+                        updateEmptyAppsCache(emptyAppsCache, app)
                         changed = True
                         #printApps()
 
@@ -489,7 +561,7 @@ def run(companies: list[Company], attendees: list[Attendee]):
     print("start:", datetime.now().strftime("%H:%M:%S"))
     tryMatchEveryone(chosenAttendees)
     print("stop:", datetime.now().strftime("%H:%M:%S"))
-    printApps()
+    #printApps()
     print(
         "candidates:", len(chosenAttendees),
         "spots:", noApps,
@@ -522,8 +594,8 @@ def run(companies: list[Company], attendees: list[Attendee]):
 
         print(f'avg appointments: {assigned/len(attendees)}/{feasibleTotal/len(attendees)}\nmatched: {assigned}/{total}\nfeasible matches: {assigned}/{feasibleTotal}')
     
-    printApps()
-    printAtts()
+    #printApps()
+    #printAtts()
 
     def getAttUtility(app, att):
         return att.prefsDic[app.company] if att and app else 0
@@ -570,7 +642,7 @@ def run(companies: list[Company], attendees: list[Attendee]):
             if not changed: break
                 
     maxPref(attendees)
-    printApps()
+    #printApps()
     print(
         "candidates:", len(chosenAttendees),
         "spots:", noApps,
@@ -627,35 +699,104 @@ def run(companies: list[Company], attendees: list[Attendee]):
             if not changed: break
                 
     moveToStartOfDay()
-    printApps()
+    #printApps()
+
+def tryToReadTable(readFunc: Callable[[str]], tableName: str):
+    while True:
+        fileName = input(f'enter {tableName} table file name: ')
+        try:
+            ValidationException.throwIfFalse(
+                fileName.split('.')[-1] == 'csv',
+                f'invalid file name ({fileName}): not .csv'
+            )
+            readFunc(fileName)
+            print('\t', '...validated.')
+            break
+        except ValidationException as e:
+            print('\t', str(e))
+        except Exception as e:
+            raise e
+
+debugging = True
 
 if __name__ == "__main__":
 
-    interviewDays = []
-    readInterviewDays('interviewDays.csv', interviewDays)
+    if debugging:
+        interviewDays = []
+        readInterviewDays(getFileContents('interviewDays.csv'), interviewDays)
 
-    companyNames = set()
-    readCompanyNames('companyList.csv', companyNames)
+        companyNames = set()
+        readCompanyNames(getFileContents('companyList.csv'), companyNames)
 
-    companyRoomNames = {}
-    roomLengths = {}
-    roomNames = set()
-    readRoomNames('companyRoomsList.csv', companyNames, companyRoomNames, roomLengths, roomNames)
+        companyRoomNames = {}
+        roomLengths = {}
+        roomNames = set()
+        readRoomNames(getFileContents('companyRoomsList.csv'), companyNames, companyRoomNames, roomLengths, roomNames)
 
-    companyRoomBreaks = {}
-    readRoomBreaks('companyBreakList.csv', interviewDays, roomNames, companyRoomBreaks)
+        companyRoomBreaks = {}
+        readRoomBreaks(getFileContents('companyBreakList.csv'), interviewDays, roomNames, companyRoomBreaks)
 
-    attendeeIDs = set()
-    readAttendeeNames('attendeesList.csv', attendeeIDs)
+        attendeeIDs = set()
+        readAttendeeNames(getFileContents('attendeesList.csv'), attendeeIDs)
 
-    attendeeBreaks = {}
-    readAttendeeBreaks('attendeeBreaksList.csv', interviewDays, attendeeIDs, attendeeBreaks)
+        attendeeBreaks = {}
+        readAttendeeBreaks(getFileContents('attendeeBreaksList.csv'), interviewDays, attendeeIDs, attendeeBreaks)
 
-    attendeePreferences = {}
-    readAttendeePrefs('attendeePreferencesList.csv', companyNames, attendeeIDs, attendeePreferences)
+        attendeePreferences = {}
+        readAttendeePrefs(getFileContents('attendeePreferencesList.csv'), companyNames, attendeeIDs, attendeePreferences)
 
-    roomCandidates = {}
-    readRoomCandidates('roomCandidatesList.csv', roomNames, attendeeIDs, roomCandidates)
+        roomCandidates = {}
+        readRoomCandidates(getFileContents('roomCandidatesList.csv'), roomNames, attendeeIDs, roomCandidates)
+    else:
+
+        interviewDays = []
+        tryToReadTable(
+            lambda fn: readInterviewDays(getFileContents(fn), interviewDays),
+            'interview days list'
+        )
+
+        companyNames = set()
+        tryToReadTable(
+            lambda fn: readCompanyNames(getFileContents(fn), companyNames),
+            'company list'
+        )
+
+        companyRoomNames = {}
+        roomLengths = {}
+        roomNames = set()
+        tryToReadTable(
+            lambda fn: readRoomNames(getFileContents(fn), companyNames, companyRoomNames, roomLengths, roomNames),
+            'room list'
+        )
+        companyRoomBreaks = {}
+        tryToReadTable(
+            lambda fn: readRoomBreaks(getFileContents(fn), interviewDays, roomNames, companyRoomBreaks),
+            'room breaks list'
+        )
+
+        attendeeIDs = set()
+        tryToReadTable(
+            lambda fn: readAttendeeNames(getFileContents(fn), attendeeIDs),
+            'attendees list'
+        )
+
+        attendeeBreaks = {}
+        tryToReadTable(
+            lambda fn: readAttendeeBreaks(getFileContents(fn), interviewDays, attendeeIDs, attendeeBreaks),
+            'attendee breaks list'
+        )
+
+        attendeePreferences = {}
+        tryToReadTable(
+            lambda fn: readAttendeePrefs(getFileContents(fn), companyNames, attendeeIDs, attendeePreferences),
+            'attendee preferences list'
+        )
+
+        roomCandidates = {}
+        tryToReadTable(
+            lambda fn: readRoomCandidates(getFileContents(fn), roomNames, attendeeIDs, roomCandidates),
+            'room candidates list'
+        )
 
     companies = []
     attendees = []
@@ -673,4 +814,5 @@ if __name__ == "__main__":
 
     print('done readin')
 
+    #cProfile.run('run(companies, attendees)')
     run(companies, attendees)
