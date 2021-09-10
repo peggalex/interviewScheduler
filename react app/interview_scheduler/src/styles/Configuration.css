@@ -103,3 +103,7 @@
     content: "• ";
     margin-right: 0.25rem;
 }
+
+body:last-child {
+    margin-bottom: 1rem;
+}

@@ -176,7 +176,7 @@ const tables: Table[] = [
 
 
 
-function FileUpload(): JSX.Element{
+function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: () => void}): JSX.Element{
     const fileRef = React.useRef(null as HTMLInputElement|null);
     const [isLoading, setIsLoading] = React.useState(false);
     const [fileName, setFileName] = React.useState("");
@@ -232,7 +232,10 @@ function FileUpload(): JSX.Element{
     }
 
     return isLoading ? <div className="loader"></div> : <>
-        <label id="htmlUploadContainer">
+        <label id="htmlUploadContainer" onClick={() => {
+                table.isLoaded = true;
+                updateIsLoadeds();
+            }}>
             <input 
                 onChange={onFileChange} 
                 ref={fileRef} 
@@ -267,10 +270,29 @@ function ColumnConfig({table, col}: {table: Table, col: IColumn}){
     </div>
 }
 
-function TableConfig({table}: {table: Table}){
-    return <div className='table'>
-        <div className='tableHeader row'>
-            <div className='tableChevronContainer'>{Icons.ChevronUp}</div>
+function TableConfig(
+    {table, isSelected, scrollTo, updateIsLoadeds}: 
+    {table: Table, isSelected: boolean, scrollTo: (t: Table) => void, updateIsLoadeds: () => void}
+){
+
+    const shouldExpand = () => table.isDependenciesLoaded() || isSelected;
+
+    const [isExpanded, setIsExpanded] = React.useState(shouldExpand());
+    const elRef = React.useRef(null as HTMLDivElement|null);
+    React.useEffect(() => {
+        if (isSelected){
+            elRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start'});
+        }
+    }, [isSelected]);
+    React.useEffect(() => {
+        setIsExpanded(shouldExpand());
+    }, [table.isDependenciesLoaded(), isSelected]);
+
+    return <div ref={elRef} className='table'>
+        <div className='tableHeader row clickable' onClick={() => setIsExpanded(!isExpanded)}>
+            <div className='tableChevronContainer'>
+                {isExpanded ? Icons.ChevronDown : Icons.ChevronUp}
+            </div>
             <h2 className='centerAll'>{table.name}</h2>
             <div className='spacer'></div>
             <div className='tableAvailability centerAll'>
@@ -280,14 +302,18 @@ function TableConfig({table}: {table: Table}){
                 }
             </div>
         </div>
-        <div className='tableConfig col'>
+        {!isExpanded ? null : <div className='tableConfig col'>
             <div className='tableDesc'>
                 <p>{table.desc}</p>
             </div>
             {table.dependencies.length == 0 ? null : <div className='tableDependencies'>
                 <h3>Depends on:</h3>
                 <ul>
-                    {table.dependencies.map(t => <li className='dependency row centerCross'>
+                    {table.dependencies.map((t,i) => <li 
+                        className='dependency row centerCross clickable'
+                        onClick={() => scrollTo(t)}
+                        key={i}
+                    >
                         <p>{t.name} table</p>
                         <div className='dependencyIcon row centerCross'>
                             {t.isLoaded ? Icons.CheckMark : Icons.CrossSign}
@@ -298,20 +324,32 @@ function TableConfig({table}: {table: Table}){
             <div className='tableColumns'>
                 <h3>Columns:</h3>
                 <ul>
-                    {table.columns.map(c => <li><ColumnConfig table={table} col={c}/></li>)}
+                    {table.columns.map((c, i) => <li key={i}><ColumnConfig table={table} col={c}/></li>)}
                 </ul>
             </div>
             <div className='tableUpload col centerCross'>
-                <FileUpload/>
+                <FileUpload table={table} updateIsLoadeds={updateIsLoadeds}/>
             </div>
-        </div>
+        </div>}
     </div>
 }
 
 function ConfigurationPage(){
 
+    let [selectedTable, selectTable] = React.useState(null as Table|null);
+
+    const getIsLoadeds = () => tables.map(t => t.isLoaded);
+    let [isLoadeds, setIsLoadeds] = React.useState(getIsLoadeds());
+    const updateIsLoadeds = () => setIsLoadeds(getIsLoadeds());
+
     return <div id='configPage'>
-        {tables.map(t => <TableConfig table={t}/>)}
+        {tables.map(t => <TableConfig 
+            key={t.name} 
+            table={t} 
+            isSelected={selectedTable == t} 
+            scrollTo={(t: Table) => selectTable(t)}
+            updateIsLoadeds={updateIsLoadeds}
+        />)}
     </div>
 }
 
