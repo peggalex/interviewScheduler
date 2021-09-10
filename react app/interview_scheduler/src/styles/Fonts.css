@@ -1,0 +1,9 @@
+@font-face {
+  font-family: 'Orelega One';
+  src: url('../fonts/OrelegaOne-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-VariableFont_slnt,wght.ttf') format('truetype');
+}

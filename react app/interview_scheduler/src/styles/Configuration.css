@@ -1,0 +1,105 @@
+#configPage {
+    max-width: 1000px;
+    margin: auto;
+}
+
+.tableChevronContainer {
+    width: 2rem;
+    color: var(--grey600);
+}
+
+.tableChevronContainer svg {
+    stroke-width: 3px;
+}
+
+.tableHeader {
+    background-color: var(--grey200);
+    padding: 1.25rem;
+}
+
+.tableHeader > h2 {
+    font-family: 'Orelega One';
+    font-weight: 400;
+    margin: 0 0 0 1rem;
+    color: var(--grey700);
+}
+
+.tableConfig {
+    background-color: var(--grey100);
+    padding: 0 2rem;
+}
+
+.tableConfig > div {
+    padding: 1rem;
+}
+
+.tableConfig > div + div {
+    border-top: solid 1.5px var(--grey300); 
+}
+
+.tableConfig ul {
+    list-style-type: none;
+}
+
+.tableConfig li + li {
+    margin-top: 0.5rem;
+}
+
+.tableDependencies li p {
+    text-decoration: underline;
+    margin: 0;
+}
+
+#htmlUploadContainer, #textUploadContainer{
+    margin-top: 1.5rem;
+}
+
+#htmlUpload {
+    padding: 0.5rem 3rem;
+    background-color: var(--grey300);
+    border-radius: .4rem;
+    color: var(--grey800);
+}
+
+#htmlUpload > div > p{
+    margin: 0;
+    font-weight: bold;
+}
+
+.tableUpload input[type='file']{
+    display: none;
+}
+
+#htmlUpload svg {
+    width: 1rem;
+    margin-right: 0.25rem;
+    stroke-width: .2rem;
+}
+
+#htmlUpload>p {
+    font-weight: 400;
+    margin: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--grey600);
+}
+
+.tableConfig li {
+    margin-left: -1rem;
+}
+
+.tableAvailability {
+    float: right;
+}
+
+.dependencyIcon {
+    margin-left: 0.5rem;
+    display: inline;
+    --length: 1.1rem;
+    width: var(--length);
+    height: var(--length);
+}
+
+.tableDependencies li::before {
+    content: "• ";
+    margin-right: 0.25rem;
+}
