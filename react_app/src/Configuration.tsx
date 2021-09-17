@@ -1,6 +1,7 @@
 import React from 'react';
 import Icons from './Icons';
 import './styles/Configuration.css';
+import { CallAPI, RestfulType } from './Utilities';
 
 enum ColumnType {
     STRING,
@@ -17,7 +18,22 @@ function ColumnTypeToStr(colType: ColumnType){
         case ColumnType.DATETIME:
             return 'datetime';
         default:
-            throw Error(`unhandled col type for colTypeToStr(): ${ColumnType}`);
+            throw Error(`unhandled col type for ColumnTypeToStr(): ${ColumnType}`);
+    }
+}
+
+function FormatColumn(col: string, colType: ColumnType){
+    switch (colType){
+        case ColumnType.STRING:
+        case ColumnType.INT:
+            return col;
+        case ColumnType.DATETIME:
+            let date = new Date(Date.parse(col));
+            let month = date.toLocaleString('default', { month: 'short' });
+            let mins = date.getMinutes().toString().padStart(2, '0');
+            return `${month} ${date.getDay()}, ${date.getHours()}:${mins}`;
+        default:
+            throw Error(`unhandled col type for FormatColumn(): ${ColumnType}`);
     }
 }
 
@@ -30,16 +46,20 @@ interface IColumn{
 
 class Table{
     name: string;
+    endpoint: string;
     desc: string;
     columns: IColumn[];
+    values: string[][];
     dependencies: Table[];
     isLoaded: boolean;
 
-    constructor(name: string, desc: string, columns: IColumn[], dependencies?: Table[]){
+    constructor(name: string, endpoint: string, desc: string, columns: IColumn[], dependencies?: Table[]){
         this.name = name;
+        this.endpoint = endpoint;
         this.desc = desc;
         this.dependencies = dependencies ?? [];
         this.columns = [];
+        this.values = [];
         this.isLoaded = false;
         for (let col of columns){
             this.addColumn(col);
@@ -56,10 +76,20 @@ class Table{
     isDependenciesLoaded(){
         return this.dependencies.every(t => t.isLoaded);
     }
+
+    addValues(values: string[][]){
+        if (values.some(r => r.length != this.columns.length)){
+            alert('incorrect length of return table');
+            throw Error('incorrect length of return table');
+        }
+        this.values = values;
+        this.isLoaded = true;
+    }
 }
 
 const interviewTimesTable: Table = new Table(
     'Interview Times',
+    'readInterviewTimes',
     'This is a list of valid times for interviews.',
     [
         {
@@ -81,6 +111,7 @@ const companyNameCol: IColumn = {
 
 const companiesTable: Table = new Table(
     'Companies',
+    'readCompanyNames',
     'This is a list of companies participating.',
     [companyNameCol]
 );
@@ -92,6 +123,7 @@ const roomNameCol: IColumn = {
 
 const roomsTable: Table = new Table(
     'Company Rooms',
+    'readRoomNames',
     'This is a list of company rooms.',
     [companyNameCol, roomNameCol, {
         name: 'Length',
@@ -103,16 +135,20 @@ const roomsTable: Table = new Table(
 
 const roomBreaksTable: Table = new Table(
     'Room Breaks',
+    'readRoomBreaks',
     'This is a list of rooms belonging to a company.',
-    [{
-        name: 'Start Time',
-        type: ColumnType.DATETIME
-    },
-    {
-        name: 'End Time',
-        type: ColumnType.DATETIME,
-        desc: 'must be greater than start time'
-    }],
+    [
+        roomNameCol,
+        {
+            name: 'Start Time',
+            type: ColumnType.DATETIME
+        },
+        {
+            name: 'End Time',
+            type: ColumnType.DATETIME,
+            desc: 'must be greater than start time'
+        }
+    ],
     [interviewTimesTable, roomsTable]
 );
 
@@ -125,12 +161,14 @@ const attendeeCol: IColumn = {
 
 const attendeeTable: Table = new Table(
     'Attendees',
+    'readAttendeeNames',
     'This is a list of rooms belonging to a company.',
     [attendeeCol]
 );
 
 const attendeeBreaksTable: Table = new Table(
     'Attendee Breaks',
+    'readAttendeeBreaks',
     'This is a list of rooms belonging to a company.',
     [attendeeCol,
     {
@@ -147,6 +185,7 @@ const attendeeBreaksTable: Table = new Table(
 
 const attendeePrefsTable: Table = new Table(
     'Attendee Preferences',
+    'readAttendeePrefs',
     'This is a list of rooms belonging to a company.',
     [attendeeCol, companyNameCol,
     {
@@ -159,6 +198,7 @@ const attendeePrefsTable: Table = new Table(
 
 const roomCandidatesTable: Table = new Table(
     'Room Candidates',
+    'readRoomCandidates',
     'This is a list of rooms belonging to a company.',
     [roomNameCol, attendeeCol],
     [roomsTable, attendeeTable]
@@ -197,23 +237,21 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
         let file = files[0];        
         
         var data = new FormData();
-        data.append('html', file);
+        data.append('table', file);
         
         setIsLoading(true);
-        /*
-        CallAPI("/addMatchHTML", RestfulType.POST, data)
-        .then(({date}: {date: number}) => {
-            let dateStr = new Date(date).toLocaleString("en-AU");
-            if (window.confirm(`Successfully added match from: ${dateStr}, reload page?`)){
-                window.location.href = "./matches";
-            }
+        
+        CallAPI(`/${table.endpoint}`, RestfulType.POST, data)
+        .then(({data}: {data: string[][]}) => {
+            table.addValues(data);
+            alert(`Uploaded table: ${table.name}`);
+            updateIsLoadeds();
         }).catch((res)=>{
             console.log("res", res);
             alert(res["error"]);
         }).finally(()=>{
             setIsLoading(false);
         });
-        */
     }
 
     function onFileChange(){
@@ -231,19 +269,19 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
         }
     }
 
+    let buttWorks = table.isDependenciesLoaded();
+
     return isLoading ? <div className="loader"></div> : <>
-        <label id="htmlUploadContainer" onClick={() => {
-                table.isLoaded = true;
-                updateIsLoadeds();
-            }}>
+        <label id="htmlUploadContainer">
             <input 
                 onChange={onFileChange} 
                 ref={fileRef} 
                 name="file" 
                 accept=".csv" 
                 type="file"
+                disabled={!buttWorks}
             />
-            <div id="htmlUpload" className="col centerCross clickable whiteWhenHovered">
+            <div id="htmlUpload" className={`col centerCross clickable whiteWhenHovered ${buttWorks ? "" : "disabled"}`}>
                 <div className="row centerCross">
                     {Icons.Upload} 
                     <p>choose file</p>
@@ -251,7 +289,13 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
                 <p>(.csv)</p>
             </div>
         </label>
-        <p><i>{fileName == "" ? "No file selected" : fileName}</i></p>
+        <p><i>
+            {
+                buttWorks ? 
+                    (fileName == "" ? "No file selected" : fileName) : 
+                    "dependencies not loaded"
+            }
+        </i></p>
     </>
 }
 
@@ -272,10 +316,10 @@ function ColumnConfig({table, col}: {table: Table, col: IColumn}){
 
 function TableConfig(
     {table, isSelected, scrollTo, updateIsLoadeds}: 
-    {table: Table, isSelected: boolean, scrollTo: (t: Table) => void, updateIsLoadeds: () => void}
+    {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, updateIsLoadeds: () => void}
 ){
 
-    const shouldExpand = () => table.isDependenciesLoaded() || isSelected;
+    const shouldExpand = () => table.isDependenciesLoaded();
 
     const [isExpanded, setIsExpanded] = React.useState(shouldExpand());
     const elRef = React.useRef(null as HTMLDivElement|null);
@@ -283,10 +327,12 @@ function TableConfig(
         if (isSelected){
             elRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start'});
         }
+        setIsExpanded(true);
+        scrollTo(null);
     }, [isSelected]);
     React.useEffect(() => {
         setIsExpanded(shouldExpand());
-    }, [table.isDependenciesLoaded(), isSelected]);
+    }, [table.isDependenciesLoaded()]);
 
     return <div ref={elRef} className='table'>
         <div className='tableHeader row clickable' onClick={() => setIsExpanded(!isExpanded)}>
@@ -329,6 +375,26 @@ function TableConfig(
             </div>
             <div className='tableUpload col centerCross'>
                 <FileUpload table={table} updateIsLoadeds={updateIsLoadeds}/>
+                {table.isLoaded ? <div className='tableTable'>
+                    <table>
+                        <thead>
+                            <tr>
+                                {table.columns.map((c, i) => <th key={i}>{c.name}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {table.values.map((r, i) => 
+                                <tr key={i}>
+                                    {r.map((c, k) => 
+                                        <td key={k}>
+                                            {FormatColumn(c, table.columns[k].type)}
+                                        </td>
+                                    )}
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div> : null}
             </div>
         </div>}
     </div>
@@ -347,7 +413,7 @@ function ConfigurationPage(){
             key={t.name} 
             table={t} 
             isSelected={selectedTable == t} 
-            scrollTo={(t: Table) => selectTable(t)}
+            scrollTo={(t: Table|null) => selectTable(t)}
             updateIsLoadeds={updateIsLoadeds}
         />)}
     </div>

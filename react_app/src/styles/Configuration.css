@@ -107,3 +107,29 @@
 body:last-child {
     margin-bottom: 1rem;
 }
+
+.tableTable th {
+    background-color: var(--grey300);
+    text-align: left;
+}
+.tableTable td {
+    background-color: var(--grey200);
+}
+
+.tableTable th, .tableTable td {
+    padding: 1rem;
+    font-size: 1rem; 
+}
+.tableTable > table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tableTable {
+    max-height: 27.75rem; 
+    /* idea is to have an element partially shown to indicate scrollability, 
+    macosx sometimes hides scrollbars */
+    overflow: scroll;
+    margin: 1rem 0;
+    width: 90%;
+}
