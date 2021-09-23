@@ -1,0 +1,51 @@
+#scheduleCompany {
+    overflow-y: scroll;
+}
+
+#schedules {
+    margin: 1rem;
+    width: 95vw;
+}
+
+table {
+    width: 4000px;
+    border-collapse: collapse;
+}
+
+tr {
+    height: 3rem;
+}
+
+td+td {
+    border-left: solid thin var(--grey300);
+}
+
+thead {
+    text-align: center;
+}
+
+td {
+    position: relative;
+}
+
+td > div > div {
+    text-align: center;
+    border-radius: 0.25rem;
+    background-color: var(--green400);
+    width: 100%;
+    height: 2.5rem;
+    margin: 0 0.25rem;
+}
+
+thead {
+    text-align: center;
+    background-color: var(--grey200);
+    font-weight: bold;
+}
+
+td > div {
+    position: absolute;
+    box-sizing: border-box;
+    top: 0;
+    height: 100%;
+}

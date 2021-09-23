@@ -1,11 +1,15 @@
 import React from 'react';
 import ConfigurationPage from './Configuration';
+import SchedulePage from './Schedule';
 import Icons from './Icons';
 import './styles/App.css';
 import './styles/Fonts.css';
 import './styles/tailwindColours.css';
 
 function App(){
+
+	let [configPageSelected, setConfigPageSelected] = React.useState(true);
+
 	return (
 		<div>
 			<header>
@@ -18,12 +22,18 @@ function App(){
 					</div>
 				</div>
 				<div id='navButtons' className='centerAll'>
-					<button className='selected'>Configuration</button>
-					<button>Schedule</button>
+					<button 
+						className={configPageSelected ? 'selected' : ''}
+						onClick={() => setConfigPageSelected(true)}
+					>Configuration</button>
+					<button
+						className={configPageSelected ? '' : 'selected'}
+						onClick={() => setConfigPageSelected(false)}
+					>Schedule</button>
 				</div>
 			</header>
 			<div>
-				<ConfigurationPage/>
+				{configPageSelected ? <ConfigurationPage/> : <SchedulePage/>}
 			</div>
 		</div>
 	);

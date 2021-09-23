@@ -1,6 +1,7 @@
+import { strictEqual } from 'assert';
 import React from 'react';
 import Icons from './Icons';
-import './styles/Configuration.css';
+import './styles/Schedule.css';
 import { CallAPI, RestfulType } from './Utilities';
 
 enum ColumnType {
@@ -356,23 +357,163 @@ function TableConfig(
     </div>
 }
 
-function ConfigurationPage(){
+interface IAttendee {
+    commitments: IInterval[];
+    prefs: {[company: string]: number};
+}
 
-    let [selectedTable, selectTable] = React.useState(null as Table|null);
+interface IInterval {
+    start: string;
+    end: string;
+}
 
-    const getIsLoadeds = () => tables.map(t => t.isLoaded);
-    let [isLoadeds, setIsLoadeds] = React.useState(getIsLoadeds());
-    const updateIsLoadeds = () => setIsLoadeds(getIsLoadeds());
+class Interval {
+    start: Date;
+    end: Date;
+    lengthMins: number;
 
-    return <div id='configPage'>
-        {tables.map(t => <TableConfig 
-            key={t.name} 
-            table={t} 
-            isSelected={selectedTable == t} 
-            scrollTo={(t: Table|null) => selectTable(t)}
-            updateIsLoadeds={updateIsLoadeds}
-        />)}
+    constructor(start: Date, end: Date){
+        this.start = start;
+        this.end = end;
+        this.lengthMins = (+end - +start) / 1000 / 60;
+    }
+
+    static fromStr(intervalStr: IInterval): Interval {
+        return new Interval(
+            new Date(intervalStr.start),
+            new Date(intervalStr.end)
+        )
+    }
+}
+
+interface IAppointment extends IInterval {
+    att?: IAttendee;
+    room: string;
+}
+
+interface IRoom {
+    apps: IAppointment[];
+    candidates: number[];
+}
+
+interface ISchedule {
+    attendees: {[attId: number]: IAttendee};
+    companies: {[companyName: string]: IRoom[]};
+    interviewTimes: IInterval[];
+}
+
+function addHours(date: Date, hours: number): Date {
+    let newDate = new Date(date);
+    newDate.setHours(date.getHours() + hours);
+    return newDate
+}
+
+function getHeadings(schedule: ISchedule): Date[]{
+    let interviewTimes = schedule.interviewTimes.map(
+        time => Interval.fromStr(time)
+    );
+
+    let headings = [];
+    for (let interval of interviewTimes){
+        for (let t = interval.start; t < interval.end; t = addHours(t, 1)){
+            headings.push(t);
+        }
+    }
+    return headings;
+}
+
+
+function dateToStr(date: Date){
+    let time = new Intl.DateTimeFormat(
+        'en-US', 
+        { hour: 'numeric', minute: 'numeric', hour12: true }
+    ).format(date);
+    let month = new Intl.DateTimeFormat('en-US', { month: 'short'}).format(date);
+    let day = date.getDate();
+    return `${month} ${day}, ${time}`;
+}
+
+function ScheduleCompany({schedule}: {schedule: ISchedule}){
+
+    let headings = getHeadings(schedule);
+
+    return <div id='scheduleCompany'>
+        <table>
+            <thead><tr>
+                <th>Room Name</th>
+                {headings.map((time, i) => 
+                    <th key={i}>{dateToStr(time)}</th>
+                )}
+            </tr></thead>
+            <tbody>
+                {Object.entries(schedule.companies).map(
+                    ([_, rooms]: [_: string, rooms: IRoom[]]) => {
+                        console.log('rooms', rooms);
+                        return Object.entries(rooms).map(([roomName, room]: [roomName: string, room: IRoom]) => {
+
+                            let timeToDate: {[time: number]: IAppointment[]} = {}
+                            let i = 0;
+                            for (let app of room.apps) {
+                                let interval = Interval.fromStr(app);
+
+                                for (;addHours(headings[i], 1) <= interval.start; i++){}
+
+                                timeToDate[+headings[i]] = timeToDate[+headings[i]] || [];
+                                timeToDate[+headings[i]].push(app);
+                            }
+
+                            return <tr>
+                                <td>{roomName}</td>
+                                {headings.map(heading => <td key={+heading}>{(
+                                    timeToDate[+heading] || []).map(
+                                        app => {
+                                            let interval = Interval.fromStr(app);
+                                            let lengthPercent = (interval.lengthMins / 60) * 100;
+                                            let startPercent = (interval.start.getMinutes() / 60) * 100;
+                                            return <div data-app={`${dateToStr(interval.start)} ${dateToStr(interval.end)}`} className="appContainer centerAll" style={{
+                                                left: `${startPercent}%`,
+                                                width: `${lengthPercent}%`
+                                            }}>
+                                                <div className="app centerAll">
+                                                    {app.att}
+                                                </div>
+                                            </div>
+                                        }
+                                    )
+                                }</td>
+                            )}</tr>
+                        })
+                    }
+                )}
+            </tbody>
+        </table>
     </div>
 }
 
-export default ConfigurationPage;
+function SchedulePage(){
+
+    let [scheduleObj, setScheduleObj] = React.useState(null as ISchedule|null);
+        
+	let gen = () => {
+		CallAPI(`/generateSchedule`, RestfulType.GET)
+		.then(({data}: {data: ISchedule}) => {
+            setScheduleObj(data);
+            console.log('times:', data.interviewTimes);
+			alert(`Generated schedule`);
+		}).catch((res)=>{
+			console.log("res", res);
+			alert(res["error"]);
+		});
+	}
+
+    return <div id='schedulePage' className='col centerCross'>
+        <button onClick={gen}>generate schedule</button>
+        {scheduleObj==null ? null :
+            <div id='schedules'>
+                <ScheduleCompany schedule={scheduleObj}/>
+            </div>
+        }
+    </div>
+}
+
+export default SchedulePage;

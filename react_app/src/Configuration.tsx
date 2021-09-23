@@ -370,29 +370,27 @@ function TableConfig(
             <div className='tableColumns'>
                 <h3>Columns:</h3>
                 <ul>
-                    {table.columns.map((c, i) => <li key={i}><ColumnConfig table={table} col={c}/></li>)}
+                    {table.columns.map((c, i) => 
+                        <li key={i}><ColumnConfig table={table} col={c}/></li>
+                    )}
                 </ul>
             </div>
             <div className='tableUpload col centerCross'>
                 <FileUpload table={table} updateIsLoadeds={updateIsLoadeds}/>
                 {table.isLoaded ? <div className='tableTable'>
                     <table>
-                        <thead>
-                            <tr>
-                                {table.columns.map((c, i) => <th key={i}>{c.name}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {table.values.map((r, i) => 
-                                <tr key={i}>
-                                    {r.map((c, k) => 
-                                        <td key={k}>
-                                            {FormatColumn(c, table.columns[k].type)}
-                                        </td>
-                                    )}
-                                </tr>
+                        <thead><tr>
+                            {table.columns.map((c, i) => 
+                                <th key={i}>{c.name}</th>
                             )}
-                        </tbody>
+                        </tr></thead>
+                        <tbody>{table.values.map((r, i) => 
+                            <tr key={i}>{r.map((c, k) => 
+                                <td key={k}>
+                                    {FormatColumn(c, table.columns[k].type)}
+                                </td>
+                            )} </tr>
+                        )}</tbody>
                     </table>
                 </div> : null}
             </div>
