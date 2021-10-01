@@ -1,43 +1,43 @@
-Company Name,Room Name,Interview Length
-Canada Life,Canada Life-1,20
-Canada Life,Canada Life-2,20
-CAAT Pension Plan,CAAT Pension Plan-1,30
-Deloitte,Deloitte-1,30
-Desjardins,Desjardins-1,45
-Desjardins,Desjardins-2,45
-Echelon Insurance / CCG Group,Echelon Insurance / CCG Group-1,45
-Economical Insurance,Economical Insurance-1,60
-Economical Insurance,Economical Insurance-2,30
-Economical Insurance,Economical Insurance-3,60
-Foresters Financial,Foresters Financial-1,40
-iA Financial Group,iA Financial Group-1,40
-Intact Insurance,Intact Insurance-1,45
-Intact Insurance,Intact Insurance-2,45
-KPMG Canada,KPMG Canada-1,30
-KPMG Canada,KPMG Canada-2,30
-KPMG Canada,KPMG Canada-3,30
-Mercer Canada,Mercer Canada-1,30
-Milliman,Milliman-1,60
-Manulife,Manulife-1,30
-Manulife,Manulife-2,30
-Manulife,Manulife-3,30
-Manulife,Manulife-4,30
-Manulife,Manulife-5,30
-Munich Re,Munich Re-1,30
-Munich Re,Munich Re-2,30
-Munich Re,Munich Re-3,30
-Munich Re,Munich Re-4,30
-Moody's Analytics,Moody's Analytics-1,45
-Northbridge Financial Corporation,Northbridge Financial Corporation-1,30
-Normandin Beaudry,Normandin Beaudry-1,40
-Ontario Teachers' Pension Plan,Ontario Teachers' Pension Plan-1,30
-PartnerRe,PartnerRe-1,30
-Royal and Sun Alliance (RSA),Royal and Sun Alliance (RSA)-1,30
-Royal and Sun Alliance (RSA),Royal and Sun Alliance (RSA)-2,30
-RSM Canada,RSM Canada-1,45
-Swiss Re,Swiss Re-1,30
-Swiss Re,Swiss Re-2,30
-The Co-operators,The Co-operators-1,30
-Wawanesa Insurance,Wawanesa Insurance-1,45
-Wawanesa Insurance,Wawanesa Insurance-2,30
-Wawanesa Insurance,Wawanesa Insurance-3,60
+Company Name,Room Name,Interview Length,Start,End
+Canada Life,Canada Life-1,20,2021-07-06T09:00:00,2021-07-06T18:00:00
+Canada Life,Canada Life-2,20,2021-07-06T09:00:00,2021-07-06T18:00:00
+CAAT Pension Plan,CAAT Pension Plan-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Deloitte,Deloitte-1,30,2021-07-06T09:00:00,2021-07-07T18:00:00
+Desjardins,Desjardins-1,45,2021-07-06T09:00:00,2021-07-06T18:00:00
+Desjardins,Desjardins-2,45,2021-07-06T09:00:00,2021-07-06T18:00:00
+Echelon Insurance / CCG Group,Echelon Insurance / CCG Group-1,45,2021-07-06T09:00:00,2021-07-06T18:00:00
+Economical Insurance,Economical Insurance-1,60,2021-07-06T09:00:00,2021-07-06T18:00:00
+Economical Insurance,Economical Insurance-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Economical Insurance,Economical Insurance-3,60,2021-07-06T09:00:00,2021-07-06T18:00:00
+Foresters Financial,Foresters Financial-1,40,2021-07-06T09:00:00,2021-07-06T18:00:00
+iA Financial Group,iA Financial Group-1,40,2021-07-06T09:00:00,2021-07-06T18:00:00
+Intact Insurance,Intact Insurance-1,45,2021-07-06T09:00:00,2021-07-06T18:00:00
+Intact Insurance,Intact Insurance-2,45,2021-07-06T09:00:00,2021-07-07T18:00:00
+KPMG Canada,KPMG Canada-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+KPMG Canada,KPMG Canada-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+KPMG Canada,KPMG Canada-3,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Mercer Canada,Mercer Canada-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Milliman,Milliman-1,60,2021-07-06T09:00:00,2021-07-07T18:00:00
+Manulife,Manulife-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Manulife,Manulife-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Manulife,Manulife-3,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Manulife,Manulife-4,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Manulife,Manulife-5,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Munich Re,Munich Re-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Munich Re,Munich Re-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Munich Re,Munich Re-3,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Munich Re,Munich Re-4,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Moody's Analytics,Moody's Analytics-1,45,2021-07-06T09:00:00,2021-07-07T18:00:00
+Northbridge Financial Corporation,Northbridge Financial Corporation-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Normandin Beaudry,Normandin Beaudry-1,40,2021-07-06T09:00:00,2021-07-06T18:00:00
+Ontario Teachers' Pension Plan,Ontario Teachers' Pension Plan-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+PartnerRe,PartnerRe-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Royal and Sun Alliance (RSA),Royal and Sun Alliance (RSA)-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Royal and Sun Alliance (RSA),Royal and Sun Alliance (RSA)-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+RSM Canada,RSM Canada-1,45,2021-07-06T09:00:00,2021-07-07T18:00:00
+Swiss Re,Swiss Re-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Swiss Re,Swiss Re-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+The Co-operators,The Co-operators-1,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Wawanesa Insurance,Wawanesa Insurance-1,45,2021-07-06T09:00:00,2021-07-06T18:00:00
+Wawanesa Insurance,Wawanesa Insurance-2,30,2021-07-06T09:00:00,2021-07-06T18:00:00
+Wawanesa Insurance,Wawanesa Insurance-3,60,2021-07-06T09:00:00,2021-07-06T18:00:00

@@ -24,6 +24,9 @@ class TimeInterval:
     def isIntersecting(self, timeInterval: TimeInterval) -> bool:
         return timesIntersect(self.time, self.length, timeInterval.time, timeInterval.length)
 
+    def contains(self, timeInterval: TimeInterval) -> bool:
+        return self.time <= timeInterval.time and timeInterval.end <= self.end
+
     def __repr__(self) -> str:
         return (
             f"{self.time.strftime('%b %d')}: "

@@ -129,6 +129,15 @@ const roomsTable: Table = new Table(
         name: 'Length',
         type: ColumnType.INT,
         desc: 'in minutes'
+    },    
+    {
+        name: 'Start Time',
+        type: ColumnType.DATETIME
+    },
+    {
+        name: 'End Time',
+        type: ColumnType.DATETIME,
+        desc: 'must be greater than start time'
     }],
     [companiesTable]
 );

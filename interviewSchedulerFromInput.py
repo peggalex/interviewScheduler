@@ -219,10 +219,12 @@ def readCompanyNames(doc: str, cursor: SqliteDB):
 def readRoomNames(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(ROOM_TABLE)
 
+    interviewTimes = GetInterviewTimes(cursor)
     companyNames = GetCompanies(cursor)
     roomNames = set()
 
-    for companyName,roomName,length in getCols(doc, 3, True):
+    for companyName,roomName,length,startStr,endStr in getCols(doc, 5, True):
+        interval = TimeInterval.fromStr(startStr, endStr)
 
         ValidationException.throwIfFalse(
             companyName in companyNames, 
@@ -237,12 +239,17 @@ def readRoomNames(doc: str, cursor: SqliteDB):
             length.isdigit and 0 < int(length), 
             f"invalid length ({length}), must be positive integer"
         )
-        AddRoom(cursor, companyName, roomName, int(length))
+        ValidationException.throwIfFalse(
+            any(interval.isIntersecting(d) for d in interviewTimes), 
+            f"invalid interval: break at {interval} does not intersect with interview times: {interviewTimes}"
+        )
+        AddRoom(cursor, companyName, roomName, int(length), interval)
 
 def readRoomBreaks(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(ROOMBREAKS_TABLE)
 
     interviewTimes = GetInterviewTimes(cursor)
+    roomIntervals = GetRoomIntervals(cursor)
     companyRoomNames = GetRooms(cursor)
     
     companyRoomBreaks = {}
@@ -258,8 +265,12 @@ def readRoomBreaks(doc: str, cursor: SqliteDB):
             f"invalid room name ({roomName})"
         )
         ValidationException.throwIfFalse(
-            any(b.isIntersecting(d) for d in interviewTimes), 
-            f"invalid break: break at {b} does not intersect with interview days: {interviewTimes}"
+            any(d.contains(b) for d in interviewTimes), 
+            f"invalid break: break at {b} does not intersect with interview times: {interviewTimes}"
+        )
+        ValidationException.throwIfFalse(
+            roomIntervals[roomName].contains(b),
+            f"invalid break: break at {b} does not intersect with room time: {roomIntervals[roomName]}"
         )
         ValidationException.throwIfFalse(
             all(not b.isIntersecting(b2) for b2 in companyRoomBreaks.get(roomName, [])),
@@ -299,8 +310,8 @@ def readAttendeeBreaks(doc: str, cursor: SqliteDB):
             f"invalid attendee ID ({attendeeID})"
         )
         ValidationException.throwIfFalse(
-            any(b.isIntersecting(d) for d in interviewTimes),
-            f"invalid break: break at {b} does not intersect with interview days: {interviewTimes}"
+            any(d.contains(b) for d in interviewTimes),
+            f"invalid break: break at {b} does not intersect with interview times: {interviewTimes}"
         )
         ValidationException.throwIfFalse(
             all(not b.isIntersecting(b2) for b2 in attendeeBreaks[attendeeID]),
@@ -372,12 +383,12 @@ def readRoomCandidates(doc: str, cursor: SqliteDB):
         'no room candidates'
     )
 
-def getSomeTimes(interviewTimes: list[TimeInterval], mins: int, breaks: list[TimeInterval]) -> list[TimeInterval]:
+def getSomeTimes(interviewTimes: list[TimeInterval], mins: int, breaks: list[TimeInterval], interval: TimeInterval) -> list[TimeInterval]:
     times = []
 
-    for timeInt in interviewTimes:
-        startTime = timeInt.time # start time in secs
-        endTime = timeInt.end
+    for timeInt in [t for t in interviewTimes if t.isIntersecting(interval)]:
+        startTime = max(timeInt.time, interval.time) # start time in secs
+        endTime = min(timeInt.end, interval.end)
 
         newTime = startTime
         # loop invariant: $newTimeInt.end <= $endTime
@@ -409,8 +420,9 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
     interviewTimes = GetInterviewTimes(cursor)
     companyNames = GetCompanies(cursor) 
     companyRoomNames = GetRooms(cursor)
-    roomBreaks= GetRoomBreaks(cursor)
     roomLengths = GetRoomLengths(cursor)
+    roomIntervals = GetRoomIntervals(cursor)
+    roomBreaks= GetRoomBreaks(cursor)
     attendeeIds = GetAttendees(cursor)
     attendeePrefs = GetAttendeePrefs(cursor)
     attendeeBreaks = GetAttendeeBreaks(cursor)
@@ -420,6 +432,8 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
         interviewTimes,
         companyNames,
         companyRoomNames,
+        roomLengths,
+        roomIntervals,
         attendeeIds,
         roomCandidates
     ]
@@ -447,7 +461,8 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
     for companyName,roomNames in companyRoomNames.items():
         for roomName in roomNames:
             company = companyNameToCompany[companyName]
-            times = getSomeTimes(interviewTimes, roomLengths[roomName], roomBreaks[roomName])
+            interval = roomIntervals[roomName]
+            times = getSomeTimes(interviewTimes, roomLengths[roomName], roomBreaks[roomName], interval)
             company.addCompanyRoom(
                 roomName,
                 times, 
@@ -470,14 +485,6 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
 
     def getNoCompanies(att: Attendee) -> int:
         return len([c for c in companies if c.wantsAttendee(att)])
-
-    def getNoEmptyApps(time, length):
-        noEmptyApps = 0
-        for c in companies:
-            for app in c.getAppointments():
-                if app.isEmpty() and app.intersects(time, length):
-                    noEmptyApps += 1
-        return noEmptyApps
 
     def getOverlappingAppsForApp(companies: list[Company], app: Appointment, cache: dict[Appointment, set[Appointment]]) -> set[Appointment]:
         overlapping = set()
@@ -513,9 +520,13 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
     timeColLen = 24
     timeColMinutes = 60
     def printApps():
+        return
         formatCol = lambda s: s.rjust(printColLen, ' ')
         
-        times = [timeInt.time for timeInt in getSomeTimes(interviewTimes, timeColMinutes, [])]
+        start = interviewTimes[0].time
+        end = interviewTimes[-1].end
+        interval = TimeInterval(start, end-start)
+        times = [timeInt.time for timeInt in getSomeTimes(interviewTimes, timeColMinutes, [], interval)]
         timeStrs = [t.strftime("%b %d %H:%M").center(timeColLen - 1, ' ') for t in times]
 
         headerRow = (firstColLen * ' ') + "|" + "|".join([formatCol(c) for c in  timeStrs]) + "|"
@@ -644,7 +655,7 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
     #printAtts()
 
     def getAttUtility(app, att):
-        return att.prefsDic[app.company] if att and app else 0
+        return att.prefsDic[app.company] if app and att else -1000
 
     def shouldSwap(app1, att1, app2, att2):
         canSwap = canSwapBoth(app1, att1, app2, att2)
@@ -657,24 +668,32 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
         while True:
 
             appAtts = []
+            attsNotChosen = set()
             for c in companies:
-                appAtts.extend([(app, app.attendee) for app in c.getAppointments() if not app.isEmpty()])
-            selectedAtts = set([att for app,att in appAtts])
-            notSelectedAtts = set(atts) - selectedAtts
-            appAtts.extend([(None, att) for att in notSelectedAtts])
+                for room in c.rooms:
+                    roomAttsNotChosen = set(room.candidates)
+                    for app in room.appointments:
+                        appAtts.append((app, app.attendee))
+                        if not app.isEmpty():
+                            roomAttsNotChosen.remove(app.attendee)
+                    attsNotChosen = attsNotChosen.union(roomAttsNotChosen)
+
+            appAtts.extend([(None, att) for att in attsNotChosen])
 
             changed = False
 
-            print("avg utility:", getUtility()/len(atts))
+            print("avg utility:", getUtility()/len(atts), 'matched:', len(atts))
             
             i = 0
             for i in range(len(appAtts)-1):
                 currentApp, currentAtt = appAtts[i]
                 for j in range(i+1, len(appAtts)):
                     existingApp, existingAtt = appAtts[j]
+                    if currentAtt == existingAtt:
+                        continue
                     if (currentApp is None) and (existingApp is None): continue
                     if shouldSwap(currentApp, currentAtt, existingApp, existingAtt):
-                        print("swapped!")
+                        print("swapped!", currentApp, currentAtt, existingApp, existingAtt)
                         swapBoth(currentApp, currentAtt, existingApp, existingAtt)
                         printApps()
                         changed = True
@@ -726,6 +745,7 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
                                     att3 = app3.attendee
                                     app3.swap(None, overlappingAppCache)
                                     if app1.canSwap(att3, overlappingAppCache) and app3.canSwap(att2, overlappingAppCache):
+                                        print('ternary swap')
                                         app1.swap(att3, overlappingAppCache)
                                         app3.swap(att2, overlappingAppCache)
                                         changed2 = True
@@ -742,6 +762,7 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
             if not changed: break
                 
     moveToStartOfDay()
+    maxPref(attendees)
     #printApps()
 
 def tryToReadTable(cursor: SqliteDB, readFunc: Callable[[str, SqliteDB], None], tableName: str):
@@ -780,7 +801,7 @@ if __name__ == "__main__":
                 func(getFileContents(filename), cursor)
         else:
             for func, tableName in [
-                (readInterviewTimes, 'interview days list'),
+                (readInterviewTimes, 'interview times list'),
                 (readCompanyNames, 'company list'),
                 (readRoomNames, 'room list'),
                 (readRoomBreaks, 'room breaks list'),

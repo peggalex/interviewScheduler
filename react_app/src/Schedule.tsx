@@ -387,8 +387,22 @@ class Interval {
 }
 
 interface IAppointment extends IInterval {
-    att?: IAttendee;
+    att?: number;
     room: string;
+}
+
+class Appointment {
+    att?: number;
+    companyName: string;
+    roomName: string;
+    iApp: IAppointment;
+
+    constructor(att: number, companyName: string, roomName: string, iApp: IAppointment){
+        this.att = att;
+        this.companyName = companyName;
+        this.roomName = roomName;
+        this.iApp = iApp;
+    }
 }
 
 interface IRoom {
@@ -396,9 +410,19 @@ interface IRoom {
     candidates: number[];
 }
 
+class Room {
+    companyName: string;
+    roomName: string;
+
+    constructor(company: string, room: string){
+        this.companyName = company;
+        this.roomName = room;
+    }
+}
+
 interface ISchedule {
     attendees: {[attId: number]: IAttendee};
-    companies: {[companyName: string]: IRoom[]};
+    companies: {[companyName: string]: {[roomName: string]: IRoom}};
     interviewTimes: IInterval[];
 }
 
@@ -422,69 +446,216 @@ function getHeadings(schedule: ISchedule): Date[]{
     return headings;
 }
 
+const dateToTimeStr = (date: Date) => new Intl.DateTimeFormat(
+    'en-US', 
+    { hour: 'numeric', minute: 'numeric', hour12: true }
+).format(date);
+
 
 function dateToStr(date: Date){
-    let time = new Intl.DateTimeFormat(
-        'en-US', 
-        { hour: 'numeric', minute: 'numeric', hour12: true }
-    ).format(date);
+    let time = dateToTimeStr(date);
     let month = new Intl.DateTimeFormat('en-US', { month: 'short'}).format(date);
     let day = date.getDate();
     return `${month} ${day}, ${time}`;
 }
 
-function ScheduleCompany({schedule}: {schedule: ISchedule}){
+var ATT_TO_APPS: {[att: number]: Appointment[]} = {};
+var ROOM_TO_COMPANY: {[room: string]: string} = {};
+var ATT_TO_ROOMS: {[att: number]: Set<string>} = {};
+var ATT_TO_BREAKS = {};
+
+function ScheduleCompany(
+    {schedule}: 
+    {schedule: ISchedule}
+){
+    let headings = getHeadings(schedule);
+    ATT_TO_APPS = {}; // empty out prev
+    ATT_TO_ROOMS = {};
+    ROOM_TO_COMPANY = {};
+
+    return <div id='scheduleCompany'>
+        <table>
+            <thead><tr>
+                <th id='roomNameCol'>Room Name</th>
+                {headings.map((time, i) => 
+                    <th key={i}>{dateToStr(time)}</th>
+                )}
+                <th id='extra'>Extra</th>
+            </tr></thead>
+            <tbody>
+                {Object.entries(schedule.companies).map(([companyName, rooms]) => {
+                    return Object.entries(rooms).map(([roomName, room]) => {
+
+                        let timeToApp: {[time: number]: IAppointment[]} = {}
+                        let i = 0;
+                        for (let app of room.apps) {
+                            let interval = Interval.fromStr(app);
+
+                            for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
+
+                            timeToApp[+headings[i]] = timeToApp[+headings[i]] || [];
+                            timeToApp[+headings[i]].push(app);
+                        }
+                        let length = 30;
+                        let candidatesNotSelected = new Set(room.candidates);
+                        for (let attId of room.candidates){
+                            console.log('att:', attId, 'company:', companyName);
+                            ATT_TO_ROOMS[attId] = ATT_TO_ROOMS[attId] || new Set();
+                            ATT_TO_ROOMS[attId].add(roomName);
+                            ROOM_TO_COMPANY[roomName] = companyName;
+                        }
+                        /* as we iterate over apps, remove attendees who are selected */
+                        return <tr>
+                            <td>{roomName}</td>
+                            {headings.map(heading => <td key={+heading}>{
+                                (timeToApp[+heading] || []).map(app => {
+                                    if (app.att != null){
+                                        candidatesNotSelected.delete(app.att);
+                                        ATT_TO_APPS[app.att] = ATT_TO_APPS[app.att] || [];
+                                        ATT_TO_APPS[app.att].push(new Appointment(app.att, companyName, roomName, app));
+                                    }
+                                    let interval = Interval.fromStr(app);
+                                    length = interval.lengthMins;
+                                    let lengthPercent = (interval.lengthMins / 60) * 100;
+                                    let startPercent = (interval.start.getMinutes() / 60) * 100;
+                                    let att = app.att == null ? null : schedule.attendees[app.att!];
+                                    return <div 
+                                        data-app={`${dateToStr(interval.start)} ${dateToStr(interval.end)}`} 
+                                        className="appContainer centerAll" style={{
+                                            left: `${startPercent}%`,
+                                            width: `${lengthPercent}%`
+                                        }}
+                                        key={roomName + interval.toString()}
+                                    >
+                                        <div className={`app col centerAll ${app.att ? '' : 'empty'}`}>
+                                            <div className='appLength'>{interval.lengthMins}m</div>
+                                            <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
+                                            <span className='appAtt'>{app.att || '?'}</span>
+                                            <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                        </div>
+                                    </div>
+                                })
+                            }</td>)}
+                            <td><div className="row">{Array.from(candidatesNotSelected).map(attId => {
+                                let att = schedule.attendees[attId];
+                                return <div key={attId} className="appContainer notSelected centerAll">
+                                    <div className={`app col centerAll`}>
+                                        <span className='appPref'>pref: {att.prefs[companyName]}</span>
+                                        <span className='appAtt'>{attId}</span>
+                                    </div>
+                                </div>
+                            })}</div></td>
+                        </tr>
+                    })
+                })}
+            </tbody>
+        </table>
+    </div>
+}
+
+
+function ScheduleAttendees(
+        {schedule,}: 
+        {schedule: ISchedule}
+    ){
 
     let headings = getHeadings(schedule);
 
     return <div id='scheduleCompany'>
         <table>
             <thead><tr>
-                <th>Room Name</th>
+                <th id='roomNameCol'>Attendee</th>
                 {headings.map((time, i) => 
                     <th key={i}>{dateToStr(time)}</th>
                 )}
+                <th id='extra'>Extra</th>
             </tr></thead>
             <tbody>
-                {Object.entries(schedule.companies).map(
-                    ([_, rooms]: [_: string, rooms: IRoom[]]) => {
-                        console.log('rooms', rooms);
-                        return Object.entries(rooms).map(([roomName, room]: [roomName: string, room: IRoom]) => {
+                {Object.entries(schedule.attendees).map(([attIdStr, att]) => {
+                    let timeToApp: {[time: number]: Appointment[]} = {};
+                    let timeToBreak: {[time: number]: Interval[]} = {};
+                    let attId = parseInt(attIdStr); // ts considers keys as string
+                    if ((ATT_TO_ROOMS[attId] || new Set()).size == 0) return;
+                    let i = 0;
+                    let apps = ATT_TO_APPS[attId] || [];
+                    apps.sort((a,b) => +Interval.fromStr(a.iApp).start - +Interval.fromStr(b.iApp).start)
+                    for (let app of apps) {
+                        let interval = Interval.fromStr(app.iApp);
 
-                            let timeToDate: {[time: number]: IAppointment[]} = {}
-                            let i = 0;
-                            for (let app of room.apps) {
-                                let interval = Interval.fromStr(app);
+                        for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
 
-                                for (;addHours(headings[i], 1) <= interval.start; i++){}
-
-                                timeToDate[+headings[i]] = timeToDate[+headings[i]] || [];
-                                timeToDate[+headings[i]].push(app);
-                            }
-
-                            return <tr>
-                                <td>{roomName}</td>
-                                {headings.map(heading => <td key={+heading}>{(
-                                    timeToDate[+heading] || []).map(
-                                        app => {
-                                            let interval = Interval.fromStr(app);
-                                            let lengthPercent = (interval.lengthMins / 60) * 100;
-                                            let startPercent = (interval.start.getMinutes() / 60) * 100;
-                                            return <div data-app={`${dateToStr(interval.start)} ${dateToStr(interval.end)}`} className="appContainer centerAll" style={{
-                                                left: `${startPercent}%`,
-                                                width: `${lengthPercent}%`
-                                            }}>
-                                                <div className="app centerAll">
-                                                    {app.att}
-                                                </div>
-                                            </div>
-                                        }
-                                    )
-                                }</td>
-                            )}</tr>
-                        })
+                        timeToApp[+headings[i]] = timeToApp[+headings[i]] || [];
+                        timeToApp[+headings[i]].push(app);
                     }
-                )}
+                    i = 0;
+                    for (let breakStr of att.commitments) {
+                        let interval = Interval.fromStr(breakStr);
+
+                        for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
+
+                        timeToBreak[+headings[i]] = timeToBreak[+headings[i]] || [];
+                        timeToBreak[+headings[i]].push(interval);
+                    }
+                    let roomsNotSelected = new Set(ATT_TO_ROOMS[attId]); 
+                    /* as we iterate over apps, remove companies who are selected */
+                    return <tr>
+                        <td>{attId}</td>
+                        {headings.map(heading =><td key={+heading}>{
+                            (timeToBreak[+heading] || []).map(interval => {
+                                let lengthPercent = (interval.lengthMins / 60) * 100;
+                                let startPercent = (interval.start.getMinutes() / 60) * 100;
+                                return <div 
+                                    data-app={`${dateToStr(interval.start)} ${dateToStr(interval.end)}`} 
+                                    className="appContainer centerAll" style={{
+                                        left: `${startPercent}%`,
+                                        width: `${lengthPercent}%`
+                                    }}
+                                    key={attId + interval.toString()}
+                                >
+                                    <div className={`app col centerAll ${'empty'}`}>
+                                        <div className='appLength'>{interval.lengthMins}m</div>
+                                        <span className='appPref'></span>
+                                        <span className='appAtt'>{'break'}</span>
+                                        <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                    </div>
+                                </div>
+                            })
+                        }{
+                            (timeToApp[+heading] || []).map(app => {
+                                if (app.att != null){
+                                    roomsNotSelected.delete(app.roomName);
+                                }
+                                let interval = Interval.fromStr(app.iApp);
+                                let lengthPercent = (interval.lengthMins / 60) * 100;
+                                let startPercent = (interval.start.getMinutes() / 60) * 100;
+                                let att = app.att == null ? null : schedule.attendees[app.att!];
+                                return <div 
+                                    data-app={`${dateToStr(interval.start)} ${dateToStr(interval.end)}`} 
+                                    className="appContainer centerAll" style={{
+                                        left: `${startPercent}%`,
+                                        width: `${lengthPercent}%`
+                                    }}
+                                    key={attId + interval.toString()}
+                                >
+                                    <div className={`app col centerAll ${app.att ? '' : 'empty'}`}>
+                                        <div className='appLength'>{interval.lengthMins}m</div>
+                                        <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[app.companyName]}`}</span>
+                                        <span className='appAtt'>{app.roomName}</span>
+                                        <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                    </div>
+                                </div>
+                            })
+                        }</td>)}
+                        <td><div className="row">{Array.from(roomsNotSelected).map(roomName => {
+                            return <div key={attId} className="appContainer notSelected centerAll">
+                                <div className={`app col centerAll`}>
+                                    <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
+                                    <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
+                                </div>
+                            </div>
+                        })}</div></td>
+                    </tr>
+                })}
             </tbody>
         </table>
     </div>
@@ -498,7 +669,6 @@ function SchedulePage(){
 		CallAPI(`/generateSchedule`, RestfulType.GET)
 		.then(({data}: {data: ISchedule}) => {
             setScheduleObj(data);
-            console.log('times:', data.interviewTimes);
 			alert(`Generated schedule`);
 		}).catch((res)=>{
 			console.log("res", res);
@@ -506,11 +676,14 @@ function SchedulePage(){
 		});
 	}
 
+    let attToApp: {[attId: number]: IAppointment[]} = {};
+
     return <div id='schedulePage' className='col centerCross'>
         <button onClick={gen}>generate schedule</button>
         {scheduleObj==null ? null :
             <div id='schedules'>
                 <ScheduleCompany schedule={scheduleObj}/>
+                <ScheduleAttendees schedule={scheduleObj}/>
             </div>
         }
     </div>

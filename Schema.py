@@ -51,13 +51,17 @@ ROOM_TABLE = DatedTable("room")
 ROOM_TABLE.CreateForeignKey(COMPANY_NAME_COL, isPrimary=True)
 ROOM_NAME_COL = ROOM_TABLE.CreateColumn("roomName", VarCharType(50), isPrimary=True)
 ROOM_LENGTH_COL = ROOM_TABLE.CreateColumn("length", INTEGER_TYPE)
+ROOM_START_COL = ROOM_TABLE.CreateColumn("start", DATETIME_TYPE)
+ROOM_END_COL = ROOM_TABLE.CreateColumn("end", DATETIME_TYPE)
 
-def AddRoom(cursor: SqliteDB, companyName: str, roomName: str, roomLen: str):
+def AddRoom(cursor: SqliteDB, companyName: str, roomName: str, roomLen: str, interval: TimeInterval):
     cursor.InsertIntoTable(
         ROOM_TABLE, {
             COMPANY_NAME_COL: [companyName],
             ROOM_NAME_COL: [roomName],
-            ROOM_LENGTH_COL: [roomLen]
+            ROOM_LENGTH_COL: [roomLen],
+            ROOM_START_COL: [interval.time],
+            ROOM_END_COL: [interval.end]
         }
     )
 
@@ -85,6 +89,21 @@ def GetRoomLengths(cursor: SqliteDB) -> dict[str, int]:
             ROOM_TABLE
         ))
     }
+
+def GetRoomIntervals(cursor: SqliteDB) -> dict[str, TimeInterval]:
+    roomIntervalsObj = cursor.FetchAll(cursor.Q(
+        [ROOM_NAME_COL, ROOM_START_COL, ROOM_END_COL],
+        ROOM_TABLE
+    ))
+    roomIntervals = {}
+    for timeObj in roomIntervalsObj:
+        getTime = lambda col: datetime.fromisoformat(timeObj[col.name])
+        room = timeObj[ROOM_NAME_COL.name]
+        start = getTime(INTERVIEWTIME_START_COL)
+        end = getTime(INTERVIEWTIME_END_COL)
+
+        roomIntervals[room] = (TimeInterval(start, end-start))
+    return roomIntervals
 
 ROOMBREAKS_TABLE = DatedTable("roomBreak")
 ROOMBREAKS_TABLE.CreateForeignKey(ROOM_NAME_COL, isPrimary=True)
