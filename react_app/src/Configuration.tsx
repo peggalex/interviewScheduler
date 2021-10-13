@@ -51,7 +51,6 @@ class Table{
     columns: IColumn[];
     values: string[][];
     dependencies: Table[];
-    isLoaded: boolean;
 
     constructor(name: string, endpoint: string, desc: string, columns: IColumn[], dependencies?: Table[]){
         this.name = name;
@@ -60,7 +59,6 @@ class Table{
         this.dependencies = dependencies ?? [];
         this.columns = [];
         this.values = [];
-        this.isLoaded = false;
         for (let col of columns){
             this.addColumn(col);
         }
@@ -77,19 +75,26 @@ class Table{
         return this.dependencies.every(t => t.isLoaded);
     }
 
+    isLoaded(){
+        return 0 < this.values.length;
+    }
+
+    empty(){
+        this.values = [];
+    }
+
     addValues(values: string[][]){
         if (values.some(r => r.length != this.columns.length)){
             alert('incorrect length of return table');
             throw Error('incorrect length of return table');
         }
         this.values = values;
-        this.isLoaded = true;
     }
 }
 
 const interviewTimesTable: Table = new Table(
     'Interview Times',
-    'readInterviewTimes',
+    'InterviewTimes',
     'This is a list of valid times for interviews.',
     [
         {
@@ -111,7 +116,7 @@ const companyNameCol: IColumn = {
 
 const companiesTable: Table = new Table(
     'Companies',
-    'readCompanyNames',
+    'CompanyNames',
     'This is a list of companies participating.',
     [companyNameCol]
 );
@@ -123,7 +128,7 @@ const roomNameCol: IColumn = {
 
 const roomsTable: Table = new Table(
     'Company Rooms',
-    'readRoomNames',
+    'RoomNames',
     'This is a list of company rooms.',
     [companyNameCol, roomNameCol, {
         name: 'Length',
@@ -139,12 +144,12 @@ const roomsTable: Table = new Table(
         type: ColumnType.DATETIME,
         desc: 'must be greater than start time'
     }],
-    [companiesTable]
+    [companiesTable, interviewTimesTable]
 );
 
 const roomBreaksTable: Table = new Table(
     'Room Breaks',
-    'readRoomBreaks',
+    'RoomBreaks',
     'This is a list of rooms belonging to a company.',
     [
         roomNameCol,
@@ -161,8 +166,6 @@ const roomBreaksTable: Table = new Table(
     [interviewTimesTable, roomsTable]
 );
 
-
-
 const attendeeCol: IColumn = {
     name: 'Attendee ID',
     type: ColumnType.STRING
@@ -170,14 +173,14 @@ const attendeeCol: IColumn = {
 
 const attendeeTable: Table = new Table(
     'Attendees',
-    'readAttendeeNames',
+    'AttendeeNames',
     'This is a list of rooms belonging to a company.',
     [attendeeCol]
 );
 
 const attendeeBreaksTable: Table = new Table(
     'Attendee Breaks',
-    'readAttendeeBreaks',
+    'AttendeeBreaks',
     'This is a list of rooms belonging to a company.',
     [attendeeCol,
     {
@@ -194,7 +197,7 @@ const attendeeBreaksTable: Table = new Table(
 
 const attendeePrefsTable: Table = new Table(
     'Attendee Preferences',
-    'readAttendeePrefs',
+    'AttendeePrefs',
     'This is a list of rooms belonging to a company.',
     [attendeeCol, companyNameCol,
     {
@@ -207,7 +210,7 @@ const attendeePrefsTable: Table = new Table(
 
 const roomCandidatesTable: Table = new Table(
     'Room Candidates',
-    'readRoomCandidates',
+    'RoomCandidates',
     'This is a list of rooms belonging to a company.',
     [roomNameCol, attendeeCol],
     [roomsTable, attendeeTable]
@@ -250,9 +253,15 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
         
         setIsLoading(true);
         
-        CallAPI(`/${table.endpoint}`, RestfulType.POST, data)
+        CallAPI(`/set${table.endpoint}`, RestfulType.POST, data)
         .then(({data}: {data: string[][]}) => {
             table.addValues(data);
+            for (let otherTable of tables){
+                if (otherTable == table) continue;
+                if (otherTable.dependencies.includes(table)){
+                    otherTable.empty();
+                }
+            }
             alert(`Uploaded table: ${table.name}`);
             updateIsLoadeds();
         }).catch((res)=>{
@@ -327,10 +336,16 @@ function TableConfig(
     {table, isSelected, scrollTo, updateIsLoadeds}: 
     {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, updateIsLoadeds: () => void}
 ){
+    const [tableIsLoaded, setTableIsLoaded] = React.useState(table.isLoaded());
+    let updateTableIsLoaded = () => setTableIsLoaded(table.isLoaded());
 
     const shouldExpand = () => table.isDependenciesLoaded();
-
     const [isExpanded, setIsExpanded] = React.useState(shouldExpand());
+
+    const getDependencyLoaded = () => JSON.stringify(table.dependencies.map(d => d.isLoaded()));
+    const [dependencyLoaded, setDependencyLoaded] = React.useState(getDependencyLoaded());
+    console.log(`rendering table ${table.name}`)
+
     const elRef = React.useRef(null as HTMLDivElement|null);
     React.useEffect(() => {
         if (isSelected){
@@ -339,9 +354,25 @@ function TableConfig(
         setIsExpanded(true);
         scrollTo(null);
     }, [isSelected]);
+
+    let updateData = () => {
+        CallAPI(`/get${table.endpoint}`, RestfulType.GET)
+        .then(({data}: {data: string[][]}) => {
+            table.addValues(data);
+            updateTableIsLoaded();
+        }).catch((res)=>{
+            console.log("res", res);
+            alert(res["error"]);
+        });
+    }
+
     React.useEffect(() => {
+        if (table.isDependenciesLoaded()) {
+            updateData();
+        }
         setIsExpanded(shouldExpand());
-    }, [table.isDependenciesLoaded()]);
+        setDependencyLoaded(getDependencyLoaded());
+    }, [getDependencyLoaded()]);
 
     return <div ref={elRef} className='table'>
         <div className='tableHeader row clickable' onClick={() => setIsExpanded(!isExpanded)}>
@@ -352,7 +383,7 @@ function TableConfig(
             <div className='spacer'></div>
             <div className='tableAvailability centerAll'>
                 {table.isDependenciesLoaded() ? 
-                    (table.isLoaded ? Icons.CheckMark : Icons.PlusSign) : 
+                    (table.isLoaded() ? Icons.CheckMark : Icons.PlusSign) : 
                     Icons.CrossSign
                 }
             </div>
@@ -371,7 +402,7 @@ function TableConfig(
                     >
                         <p>{t.name} table</p>
                         <div className='dependencyIcon row centerCross'>
-                            {t.isLoaded ? Icons.CheckMark : Icons.CrossSign}
+                            {t.isLoaded() ? Icons.CheckMark : Icons.CrossSign}
                         </div>
                     </li>)}
                 </ul>
@@ -386,7 +417,7 @@ function TableConfig(
             </div>
             <div className='tableUpload col centerCross'>
                 <FileUpload table={table} updateIsLoadeds={updateIsLoadeds}/>
-                {table.isLoaded ? <div className='tableTable'>
+                {table.isLoaded() ? <div className='tableTable'>
                     <table>
                         <thead><tr>
                             {table.columns.map((c, i) => 
@@ -411,7 +442,7 @@ function ConfigurationPage(){
 
     let [selectedTable, selectTable] = React.useState(null as Table|null);
 
-    const getIsLoadeds = () => tables.map(t => t.isLoaded);
+    const getIsLoadeds = () => JSON.stringify(tables.map(t => t.isLoaded()));
     let [isLoadeds, setIsLoadeds] = React.useState(getIsLoadeds());
     const updateIsLoadeds = () => setIsLoadeds(getIsLoadeds());
 

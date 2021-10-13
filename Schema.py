@@ -48,7 +48,7 @@ def GetCompanies(cursor: SqliteDB) -> set[str]:
     ))
 
 ROOM_TABLE = DatedTable("room")
-ROOM_TABLE.CreateForeignKey(COMPANY_NAME_COL, isPrimary=True)
+ROOM_TABLE.CreateForeignKey(COMPANY_NAME_COL, isPrimary=False)
 ROOM_NAME_COL = ROOM_TABLE.CreateColumn("roomName", VarCharType(50), isPrimary=True)
 ROOM_LENGTH_COL = ROOM_TABLE.CreateColumn("length", INTEGER_TYPE)
 ROOM_START_COL = ROOM_TABLE.CreateColumn("start", DATETIME_TYPE)

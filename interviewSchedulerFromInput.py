@@ -35,14 +35,103 @@ def getFileContents(fn: str) -> str:
     with open(fn, 'r', encoding='utf-8') as f:
         return f.read()
 
+def parseJsonSchedule(data: dict) -> tuple[
+            list[Attendee], 
+            list[Company], 
+            list[TimeInterval],
+            Optional[Appointment], 
+            Optional[Attendee], 
+            Optional[Appointment], 
+            Optional[Attendee]
+        ]:
+
+    attendeesJson, companiesJson = data['attendees'], data['companies']
+    app1Json, att1Id, app2Json, att2Id = [data[k] for k in ['app1', 'att1', 'app2', 'att2']]
+
+    interviewTimes = [TimeInterval.fromStr(t['start'], t['end']) for t in data['interviewTimes']]
+
+    companyNameToCompany = {}
+    for companyName in companiesJson.keys():
+        companyNameToCompany[companyName] = Company(companyName)
+
+    attendeeIdToAttendee = {}
+    for attIdStr, attendeeJson in attendeesJson.items():
+        attId = int(attIdStr)
+        prefs = [
+            CompanyPreference(companyNameToCompany[companyName], pref)
+            for companyName, pref in attendeeJson['prefs'].items()
+        ]
+        commitments = [TimeInterval.fromStr(c['start'], c['end']) for c in attendeeJson['commitments']]
+        attendeeIdToAttendee[attId] = Attendee(attId, prefs, commitments)
+
+    for companyName, company in companyNameToCompany.items():
+        for roomName, roomJson in companiesJson[companyName].items():
+            times = [TimeInterval.fromStr(app['start'], app['end']) for app in roomJson['apps']]
+            candidates = [attendeeIdToAttendee[attId] for attId in roomJson['candidates']]
+            company.addCompanyRoom(roomName, times, candidates)
+
+            assert(len(roomJson['apps']) == len(company.rooms[-1].appointments))
+            for i in range(len(roomJson['apps'])):
+                att = roomJson['apps'][i]['att']
+                if att is not None:
+                    company.rooms[-1].appointments[i].attendee = attendeeIdToAttendee[att]
+
+    def getApp(appJson: dict) -> Optional[Appointment]:
+        if appJson is None:
+            return None
+
+        for company in companyNameToCompany.values():
+            for room in company.rooms:
+                if room.name == appJson['room']:
+                    for app in room.appointments:
+                        if app.time == datetime.fromisoformat(appJson['start']):
+                            # datetime equality does not need to be the same object
+                            return app
+        raise ValidationException('what the hey?')
+
+    getAttId = lambda attId: attendeeIdToAttendee[attId] if attId is not None else None
+
+    att1, att2 = [getAttId(attId) for attId in (att1Id, att2Id)]
+    app1, app2 = [getApp(j) for j in [app1Json, app2Json]]
+    ValidationException.throwIfFalse(att1 != att2)
+    ValidationException.throwIfFalse(
+        all(
+            app is None or app.attendee == att 
+            for app,att in ((app1, att1), (app2, att2))
+        ),
+        'if app and att is defined, app.att = att must be true'
+    )
+    ValidationException.throwIfFalse(
+        all(
+            not(app is None and att is None)
+            for app,att in ((app1, att1), (app2, att2))
+        ),
+        'it must not be the case that app and att are None'
+    )
+    ValidationException.throwIfFalse(
+        any(att is not None for att in (att1, att2)),
+        'must be at least one att'
+    )
+
+    return (
+        list(companyNameToCompany.values()),
+        list(attendeeIdToAttendee.values()), 
+        interviewTimes,
+        app1, 
+        att1, 
+        app2, 
+        att2
+    )
+
+
 class Company:
 
     def __init__(self, name: str):
         self.name = name
         self.rooms = []
 
-    def addCompanyRoom(self, name: str, times: list[datetime], length: timedelta, candidates: list[Attendee]):
-        self.rooms.append(CompanyRoom(name, self, times, length, candidates))
+    def addCompanyRoom(self, name: str, times: list[datetime], candidates: list[Attendee]):
+        self.rooms.append(CompanyRoom(name, self, times, candidates))
         return self
 
     def wantsAttendee(self, attendee: Attendee) -> bool:
@@ -80,16 +169,12 @@ def hasOtherAppsAtTimeCached(att: Attendee, app2: Appointment, overlappingAppCac
                     return True
     return False
 
-def hasOtherAppsAtCompany(att: Attendee, company: Company):
-    return company.hasAttendee(att)
-
 class CompanyRoom:
 
-    def __init__(self, name: str, company: Company, times: list[datetime], length: timedelta, candidates: list[Attendee]):
+    def __init__(self, name: str, company: Company, times: list[datetime], candidates: list[Attendee]):
         self.name = name
         self.company = company
         self.times = times
-        self.length = length
         self.candidates = set(candidates)
         self.appointments = [
             Appointment(self, time.time, time.length) for time in times
@@ -103,7 +188,7 @@ class CompanyRoom:
             for app in self.appointments:
                 if app.isAttendee(attendee):
                     return True
-        return False        
+        return False       
 
     def __repr__(self) -> str:
         return f"{self.company.name} - room {self.name}"
@@ -134,12 +219,27 @@ class Appointment(TimeInterval):
     def getUtility(self):
         return self.attendee.getPref(self.company) if not self.isEmpty() else 0
 
+    def cantSwapReason(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]]) -> Optional[str]:
+        if attendee is not None:
+            attId = attendee.uid
+            timeStr = repr(TimeInterval(self.time, self.length))
+
+            if not self.companyRoom.wantsAttendee(attendee):
+                return f'Room ({self.companyRoom.name}) does not want attendee ({attId})'
+            if hasOtherAppsAtTimeCached(attendee, self, overlappingAppCache):
+                return f'Attendee ({attId}) has other apps at time ({timeStr})'
+            if attendee.isBusy(self):
+                return f'Attendee ({attId}) has a break at time ({timeStr})'
+            if self.company.hasAttendee(attendee):
+                return f'company ({self.company.name}) already has an appointment for attendee ({attId})'
+        return None
+
     def canSwap(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]]) -> bool:
         return attendee is None or (
             self.companyRoom.wantsAttendee(attendee) 
             and not hasOtherAppsAtTimeCached(attendee, self, overlappingAppCache)
             and not attendee.isBusy(self)
-            and not hasOtherAppsAtCompany(attendee, self.company)
+            and not self.company.hasAttendee(attendee)
         )
 
     def swap(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]]):
@@ -429,19 +529,20 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
     roomCandidates = GetRoomCandidates(cursor)
 
     mandatoryTables = [
-        interviewTimes,
-        companyNames,
-        companyRoomNames,
-        roomLengths,
-        roomIntervals,
-        attendeeIds,
-        roomCandidates
+        (interviewTimes, 'Interview Times'),
+        (companyNames, 'Company Names'),
+        (companyRoomNames, 'Rooms'),
+        (roomLengths, 'Rooms'),
+        (roomIntervals, 'Rooms'),
+        (attendeeIds, 'Attendees'),
+        (roomCandidates, 'Room Candidates')
     ]
 
-    ValidationException.throwIfFalse(
-        all(0 < len(table) for table in mandatoryTables),
-        'a mandatory table is empty'
-    )
+    for table, tableName in mandatoryTables:
+        ValidationException.throwIfFalse(
+            0 < len(table),
+            f'a mandatory table ({tableName}) is empty'
+        )
 
     companyNameToCompany = {name:Company(name) for name in companyNames}
     for company in companyNameToCompany.values():
@@ -462,17 +563,114 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
         for roomName in roomNames:
             company = companyNameToCompany[companyName]
             interval = roomIntervals[roomName]
-            times = getSomeTimes(interviewTimes, roomLengths[roomName], roomBreaks[roomName], interval)
+            times = getSomeTimes(interviewTimes, roomLengths[roomName], roomBreaks.get(roomName, []), interval)
             company.addCompanyRoom(
                 roomName,
                 times, 
-                timedelta(minutes = roomLengths[roomName]), 
                 [attendeeIDToAttendee[attId] for attId in roomCandidates.get(roomName,[])]
             )
 
 getTime = lambda day, hour, minute: day + timedelta(hours=hour, minutes=minute)
 
-def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees: list[Attendee]):
+def getJsonSchedule(companies: list[Company], attendees: list[Attendee], interviewTimes: list[TimeInterval], totalUtility: int, noApps: int, noAttsChosen: int):
+    return {
+        'companies': {c.name: c.toJson() for c in companies},
+        'attendees': {a.uid: a.toJson() for a in attendees},
+        'interviewTimes': [t.toJson() for t in interviewTimes],
+        'totalUtility': totalUtility,
+        'noAppointments': noApps,
+        'noAttendeesChosen': noAttsChosen 
+    }
+
+def trySwap(
+            companies: list[Company], 
+            attendees: list[Attendee], 
+            interviewTimes: list[TimeInterval],
+            app1: Optional[Appointment], 
+            att1: Optional[Attendee], 
+            app2: Optional[Appointment], 
+            att2: Optional[Attendee]
+        ):
+        
+    print("start:", datetime.now().strftime("%H:%M:%S"))
+    chosenAttendees = [
+        a for a in attendees 
+        if any(c.wantsAttendee(a) for c in companies)
+    ]
+
+    def getUtility():
+        return sum(sum([app.getUtility() for app in c.getAppointments()]) for c in companies)
+
+    noApps = sum(len(c.getAppointments()) for c in companies)
+
+    def getOverlappingAppsForApp(companies: list[Company], app: Appointment, cache: dict[Appointment, set[Appointment]]) -> set[Appointment]:
+        overlapping = set()
+        for c in companies:
+            for app2 in c.getAppointments():
+                cond = app in cache[app2] if app2 in cache else app.isIntersecting(app2)
+                #cond = app.isIntersecting(app2) 
+                if app != app2 and cond:
+                    overlapping.add(app2)
+        return overlapping
+
+    def getOverlappingApps(companies: list[Company]) -> dict[Appointment, set[Appointment]]:
+        cache = {}
+        for c in companies:
+            for app in c.getAppointments():
+                cache[app] = getOverlappingAppsForApp(companies, app, cache)
+        return cache
+
+    print('getOverlappingApps')
+    print("\tstart:", datetime.now().strftime("%H:%M:%S"))
+    overlappingAppCache = getOverlappingApps(companies)
+    print("\tstop:", datetime.now().strftime("%H:%M:%S"))
+    print('')
+
+    def canSwapBoth(app1, att1, app2, att2):
+        assert(not(app1 is None and app2 is None))
+        return (
+            (app2 is None or app2.canSwap(att1, overlappingAppCache))
+            and (app1 is None or app1.canSwap(att2, overlappingAppCache))
+        )
+
+    def swapBoth(app1, att1, app2, att2):
+        assert(canSwapBoth(app1, att1, app2, att2))
+        if app2:
+            app2.swap(att1, overlappingAppCache)
+        if app1:
+            app1.swap(att2, overlappingAppCache)
+
+    def printStatus():
+        print(
+            "\tavg utility:", 
+            f'{getUtility()/len(chosenAttendees):.3f}', 
+            'matched:', 
+            f'{sum([len([a for a in c.getAppointments() if not a.isEmpty()]) for c in companies])}/{noApps}\n'
+        )  
+
+    printStatus()
+    print('swapBoth')
+
+    if not canSwapBoth(app1, att1, app2, att2):
+        reason1 = None if app1 is None else app1.cantSwapReason(att2, overlappingAppCache)
+        reason2 = None if app2 is None else app2.cantSwapReason(att1, overlappingAppCache)
+        reason = reason1 or reason2
+        ValidationException.throwIfFalse(reason is not None)
+        return {'error': reason}, 400
+    swapBoth(app1, att1, app2, att2)
+    printStatus()
+    print("stop:", datetime.now().strftime("%H:%M:%S"))
+    return {'data': getJsonSchedule(
+        companies, 
+        attendees, 
+        interviewTimes, 
+        getUtility(), 
+        noApps, 
+        sum([len([a for a in c.getAppointments() if not a.isEmpty()]) for c in companies])
+    )}, 200
+
+def run(companies: list[Company], attendees: list[Attendee], interviewTimes: list[TimeInterval]):
+    print("start:", datetime.now().strftime("%H:%M:%S"))
     chosenAttendees = [
         a for a in attendees 
         if any(c.wantsAttendee(a) for c in companies)
@@ -503,64 +701,16 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
                 cache[app] = getOverlappingAppsForApp(companies, app, cache)
         return cache
 
+    print('getOverlappingApps')
     print("\tstart:", datetime.now().strftime("%H:%M:%S"))
     overlappingAppCache = getOverlappingApps(companies)
     print("\tstop:", datetime.now().strftime("%H:%M:%S"))
+    print('')
 
     def updateEmptyAppsCache(cache: dict[Appointment, set[Appointment]], notEmptyApp: Appointment):
         for app in cache[notEmptyApp]:
             cache[app].remove(notEmptyApp)
         cache.pop(notEmptyApp)
-
-
-    timeDeltaToMins = lambda time: time.total_seconds() / 60
-
-    printColLen = 12
-    firstColLen = 150
-    timeColLen = 24
-    timeColMinutes = 60
-    def printApps():
-        return
-        formatCol = lambda s: s.rjust(printColLen, ' ')
-        
-        start = interviewTimes[0].time
-        end = interviewTimes[-1].end
-        interval = TimeInterval(start, end-start)
-        times = [timeInt.time for timeInt in getSomeTimes(interviewTimes, timeColMinutes, [], interval)]
-        timeStrs = [t.strftime("%b %d %H:%M").center(timeColLen - 1, ' ') for t in times]
-
-        headerRow = (firstColLen * ' ') + "|" + "|".join([formatCol(c) for c in  timeStrs]) + "|"
-        print(headerRow)
-        print('-'*len(headerRow))
-
-        timeToLength = lambda time: int((timeDeltaToMins(time) / timeColMinutes) * timeColLen)
-
-        for c in companies:
-            for room in c.rooms:
-                firstCol = f'{str(room)} ({",".join(str(c.uid) for c in room.candidates)})'.rjust(firstColLen, ' ')
-                restOfCols = ' ' * (timeColLen * len(timeStrs))
-                for app in sorted(room.appointments, key=lambda a: a.time.timestamp()):
-                    startIndex, i = -1, 0
-                    assert(min(times) <= app.time < max(times) + timedelta(minutes=timeColMinutes))
-                    while i < len(times):
-                        if app.time == times[i]:
-                            startIndex = (i * timeColLen) + timeToLength(app.time - times[i])
-                            break
-                        if i == len(times) - 1 or app.time < times[i+1]:
-                            startIndex = (i * timeColLen) + timeToLength(app.time - times[i])
-                            break
-                        i += 1
-                    lengthIndex = timeToLength(app.length)
-                    endIndex = startIndex + lengthIndex
-                    #content = str(app.time.strftime('%H:%M')).center(lengthIndex-2, '-') if not app.isEmpty() else 'x' * (lengthIndex-2)
-                    content = str(app.attendee.uid).center(lengthIndex-2, '-') if not app.isEmpty() else 'x' * (lengthIndex-2)
-                    content = '|' + content + '|'
-                    assert(restOfCols[startIndex:endIndex] == (' '*len(content)))
-                    restOfCols = restOfCols[:startIndex] + content + restOfCols[endIndex:]
-
-                print(firstCol + '|' + restOfCols)
-                
-        print('')
 
     def canSwapBoth(app1, att1, app2, att2):
         assert(not(app1 is None and app2 is None))
@@ -615,42 +765,17 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
             if not changed:
                 break
 
-    print("start:", datetime.now().strftime("%H:%M:%S"))
+    print('\ttryMatchEveryone')
+    print("\tstart:", datetime.now().strftime("%H:%M:%S"))
     tryMatchEveryone(chosenAttendees)
-    print("stop:", datetime.now().strftime("%H:%M:%S"))
+    print("\tstop:", datetime.now().strftime("%H:%M:%S"))
     #printApps()
-    print(
+    '''print(
         "candidates:", len(chosenAttendees),
         "spots:", noApps,
         "filled:", sum([len([app for app in c.getAppointments() if not app.isEmpty()]) for c in companies])
-    )
+    )'''
 
-    def printAtts():
-        assigned = 0
-        total = 0
-        feasibleTotal = 0
-
-        for att in sorted(chosenAttendees,key = lambda att: int(att.uid)):
-
-            attCompaniesAccepted = [c for c in companies if c.hasAttendee(att)]
-            attCompanies = [c for c in companies if c.wantsAttendee(att)]
-            attCompaniesFeasible = [c for c in companies if c.wantsAttendee(att) and (c.hasAttendee(att) or any(app.isEmpty() for app in c.getAppointments()))]
-            # attCompaniesFeasible excludes companies that are full
-
-            assigned += len(attCompaniesAccepted)
-            total += len(attCompanies)
-            feasibleTotal += len(attCompaniesFeasible)
-
-            attStr = (
-                f'{str(att.uid).rjust(3, " ")}: '
-                + f'{str([c.name + ("*" if c not in attCompaniesAccepted else "") for c in attCompanies])} '
-            )
-            if att.commitments:
-                attStr += f'commitments: {str(att.commitments)}'
-            print(attStr)
-
-        print(f'avg appointments: {assigned/len(attendees)}/{feasibleTotal/len(attendees)}\nmatched: {assigned}/{total}\nfeasible matches: {assigned}/{feasibleTotal}')
-    
     #printApps()
     #printAtts()
 
@@ -663,26 +788,23 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
         swapUtil = getAttUtility(app1, att2) + getAttUtility(app2, att1)
         return canSwap and currentUtil < swapUtil # strictly less than
 
-    def maxPref(atts):
-            
+    def maxPref():
+
+        appAtts = []
+        for c in companies:
+            for room in c.rooms:
+                attsNotChosen = set(room.candidates)
+                for app in room.appointments:
+                    appAtts.append([app, app.attendee])
+                    if not app.isEmpty():
+                        attsNotChosen.remove(app.attendee)
+                appAtts.extend([[None, att] for att in attsNotChosen])
+
         while True:
-
-            appAtts = []
-            attsNotChosen = set()
-            for c in companies:
-                for room in c.rooms:
-                    roomAttsNotChosen = set(room.candidates)
-                    for app in room.appointments:
-                        appAtts.append((app, app.attendee))
-                        if not app.isEmpty():
-                            roomAttsNotChosen.remove(app.attendee)
-                    attsNotChosen = attsNotChosen.union(roomAttsNotChosen)
-
-            appAtts.extend([(None, att) for att in attsNotChosen])
 
             changed = False
 
-            print("avg utility:", getUtility()/len(atts), 'matched:', len(atts))
+            #print("avg utility:", getUtility()/len(atts), 'matched:', len(atts))
             
             i = 0
             for i in range(len(appAtts)-1):
@@ -693,23 +815,37 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
                         continue
                     if (currentApp is None) and (existingApp is None): continue
                     if shouldSwap(currentApp, currentAtt, existingApp, existingAtt):
-                        print("swapped!", currentApp, currentAtt, existingApp, existingAtt)
+                        #print("swapped!", currentApp, currentAtt, existingApp, existingAtt)
                         swapBoth(currentApp, currentAtt, existingApp, existingAtt)
-                        printApps()
+                        appAtts[i][1] = existingAtt
+                        appAtts[j][1] = currentAtt
                         changed = True
                         break
 
                 if changed: break
             
             if not changed: break
-                
-    maxPref(attendees)
+
+    def printStatus():
+        print(
+            "\tavg utility:", 
+            f'{getUtility()/len(chosenAttendees):.3f}', 
+            'matched:', 
+            f'{sum([len([a for a in c.getAppointments() if not a.isEmpty()]) for c in companies])}/{noApps}\n'
+        )  
+
+    printStatus()
+    print('\tmaxPref')
+    print("\tstart:", datetime.now().strftime("%H:%M:%S"))
+    maxPref()
+    print("\tstop:", datetime.now().strftime("%H:%M:%S"))    
+    printStatus()
     #printApps()
-    print(
+    '''print(
         "candidates:", len(chosenAttendees),
         "spots:", noApps,
         "filled:", sum([len([app for app in c.getAppointments() if not app.isEmpty()]) for c in companies])
-    )
+    )'''
     #printAtts(ret)
 
     def moveToStartOfDay():
@@ -745,7 +881,7 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
                                     att3 = app3.attendee
                                     app3.swap(None, overlappingAppCache)
                                     if app1.canSwap(att3, overlappingAppCache) and app3.canSwap(att2, overlappingAppCache):
-                                        print('ternary swap')
+                                        #print('ternary swap')
                                         app1.swap(att3, overlappingAppCache)
                                         app3.swap(att2, overlappingAppCache)
                                         changed2 = True
@@ -761,9 +897,28 @@ def run(interviewTimes: list[TimeInterval], companies: list[Company], attendees:
                     
             if not changed: break
                 
+    print('\tmoveToStartOfDay')
+    print("\tstart:", datetime.now().strftime("%H:%M:%S"))
     moveToStartOfDay()
-    maxPref(attendees)
+    print("\tstop:", datetime.now().strftime("%H:%M:%S"))    
+    printStatus()
+
+    print('\tmaxPref')
+    print("\tstart:", datetime.now().strftime("%H:%M:%S"))
+    maxPref()
+    print("\tstop:", datetime.now().strftime("%H:%M:%S"))    
+    printStatus()
+
     #printApps()
+    print("stop:", datetime.now().strftime("%H:%M:%S"))
+    return getJsonSchedule(
+        companies, 
+        attendees, 
+        interviewTimes, 
+        getUtility(), 
+        noApps, 
+        sum([len([a for a in c.getAppointments() if not a.isEmpty()]) for c in companies])
+    )
 
 def tryToReadTable(cursor: SqliteDB, readFunc: Callable[[str, SqliteDB], None], tableName: str):
     while True:
@@ -818,5 +973,5 @@ if __name__ == "__main__":
 
         print('done readin')
 
-        #cProfile.run('run(companies, attendees)')
-        run(GetInterviewTimes(cursor), companies, attendees)
+        #cProfile.run('run(companies, attendees, GetInterviewTimes(cursor))')
+        run(companies, attendees, GetInterviewTimes(cursor))

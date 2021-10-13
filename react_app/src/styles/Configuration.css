@@ -56,7 +56,7 @@
 
 #htmlUpload {
     padding: 0.5rem 3rem;
-    background-color: var(--grey300);
+    background-color: var(--grey200);
     border-radius: .4rem;
     color: var(--grey800);
 }
@@ -119,6 +119,7 @@ body:last-child {
 .tableTable th, .tableTable td {
     padding: 1rem;
     font-size: 1rem; 
+    white-space: nowrap;
 }
 .tableTable > table {
     width: 100%;

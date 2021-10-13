@@ -90,6 +90,9 @@ class Table:
         column.table = self
         return column
 
+    def GetColumns(self):
+        return [x.Source() for x in self.columns]
+
     def __repr__(self) -> str:
         
         rowStrs = [str(c) for c in self.columns]
@@ -105,7 +108,7 @@ class Table:
     def CheckColumns(self, cols: list[Column]):
         if not set(cols).issubset([c.Source() for c in self.columns]): 
             raise ValueError(
-                f"Column names ({', '.join((c.name for c in cols))} are not a subset of table '{self.name}' column names: ({', '.join((c.name for c in self.columns))}"
+                f"Column names ({', '.join((c.name for c in cols))}) are not a subset of table '{self.name}' column names: ({', '.join((c.name for c in self.columns))})"
             ) 
 
     def GetInsertStr(self, columnValues: dict[Column, list]) -> str:
@@ -155,6 +158,10 @@ class DatedTable(Table):
         return int(datetime.timestamp(datetime.now()))
 
     #@override
+    def GetColumns(self):
+        return [x for x in super().GetColumns() if x != self.timestampCol]
+
+    #@override
     def GetInsertStr(self, columnValues: dict[str, list]):
         numEntries = len(list(columnValues.values())[0])
         columnValues[self.timestampCol] = [self.GetTimestamp()] * numEntries
@@ -164,6 +171,7 @@ class SqliteDB():
     
     def __init__(self, dbName = None):
         self.connection = sqlite3.connect(dbName or DB_FILENAME)
+        self.connection.execute("PRAGMA foreign_keys = 1")
         self.connection.isolation_level = None
         self.connection.row_factory = sqlite3.Row
         self.cursor = self.connection.cursor()

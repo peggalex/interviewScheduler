@@ -133,3 +133,8 @@ button:hover, .clickable:hover {
 #htmlUpload.disabled {
   opacity: .5;
 }
+
+#navButtons>button:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}

@@ -1,6 +1,9 @@
-#scheduleCompany {
+#scheduleCompany, #scheduleAttendee {
     max-height: 90vh;
     overflow-y: scroll;
+}
+
+#scheduleAttendee{
     margin-top: 1rem;
 }
 
@@ -9,30 +12,56 @@
     width: 95vw;
 }
 
-table {
+#schedules table {
     /*width: 4750px;*/
     border-collapse: collapse;
     position: relative;
     white-space: nowrap;
 }
 
-tr {
+#schedules tr {
     height: 3rem;
 }
 
-td:not(:first-child)+td {
+#schedules td:not(:first-child)+td {
     border-left: thin solid var(--grey300);
 }
 
-thead {
+#schedules thead {
     text-align: center;
+    font-weight: bold;
 }
 
-td {
+#schedules th:not(#roomNameCol){
+    min-width: 25rem;
+    /* must be min-width or wont extend beyond parent container */
+}
+
+#schedules th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--grey200);
+    padding: 0 1rem;
+}
+
+#schedules td:first-child:after {
+    content: " ";
+    border-right: solid thin var(--grey300);
+    right: 0;
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    padding: 0;
+    margin: 0;
+    height: 100%;
+}
+
+#schedules td {
     position: relative;
 }
 
-td:first-child {
+#schedules td:first-child {
     position: sticky;
     left: 0;
     z-index: 1;
@@ -49,11 +78,6 @@ td:first-child {
     margin: 0 0.25rem;
     position: relative;
     color: white;
-}
-
-thead {
-    text-align: center;
-    font-weight: bold;
 }
 
 .appContainer {
@@ -87,7 +111,17 @@ thead {
 .appAtt {
     font-weight: bold;
     height: 1.25rem;
+    text-overflow: ellipsis;
+    width: 75%;
+    overflow: hidden;
+    white-space: nowrap;
 }
+
+#scheduleAttendee .appAtt {
+    font-size: 0.85rem;
+}
+
+
 
 .app.empty .appTime, .app.empty .appLength {
     color: var(--grey400);
@@ -96,11 +130,6 @@ thead {
 .appTime, .appLength, .appPref {
     color: var(--grey100);
     font-size: 0.5rem;
-}
-
-th:not(#roomNameCol){
-    min-width: 25rem;
-    /* must be min-width or wont extend beyond parent container */
 }
 
 .appPref {
@@ -113,22 +142,44 @@ th:not(#roomNameCol){
     font-weight: bold;
 }
 
-th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
+#generateButt {
+    padding: 1rem 3rem;
     background-color: var(--grey200);
-    padding: 0 1rem;
+    border-radius: 0.4rem;
+    color: var(--grey800);
+    border: none;
+    font-weight: bold;
+    font-size: 1rem;
 }
 
-td:first-child:after {
-    content: " ";
-    border-right: solid thin var(--grey300);
-    right: 0;
-    position: absolute;
-    z-index: 1;
-    top: 0;
-    padding: 0;
+#generateButt > p {
     margin: 0;
-    height: 100%;
+    margin-top: -0.2rem;
+}
+
+#generateButt > svg {
+    width: 1rem;
+    margin-right: .5rem;
+    stroke-width: .2rem;
+    color: var(--grey600);
+}
+
+#schedulePage .loader{
+    margin-top: 1rem;
+}
+
+#schedulesStats {
+    font-family: 'Orelega One';
+    color: var(--grey700);
+    font-size: 1.25rem;
+}
+
+#schedulesStats span {
+    font-family: 'Inter';
+    color: var(--grey600);
+    font-size: 1rem;
+}
+
+#schedulesStats p + p {
+    margin-left: 2rem;
 }
