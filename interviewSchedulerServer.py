@@ -187,16 +187,18 @@ def generateScheduleHandler() -> ResponseType:
             }, 200
                     
         except Exception as e:
-            companies.clear()
-            attendees.clear()
-
             return handleException(cursor, e)
 
 @app.route('/swapSchedule', methods=['POST'])
 def swapScheduleHandler() -> ResponseType:
-    data = request.get_json()['data']
-    companies, atts, interviewTimes, app1, att1, app2, att2 = parseJsonSchedule(data)
-    return trySwap(companies, atts, interviewTimes, app1, att1, app2, att2)
+    with SqliteDB() as cursor:
+        try:
+            data = request.get_json()['data']
+            companies, atts, interviewTimes, app1, att1, app2, att2 = parseJsonSchedule(data)
+            return trySwap(companies, atts, interviewTimes, app1, att1, app2, att2)
+        except Exception as e:
+            return handleException(cursor, e)
+
 
 @app.route('/images/<filename>')
 def getImagesEndpoint(filename) -> ResponseType:

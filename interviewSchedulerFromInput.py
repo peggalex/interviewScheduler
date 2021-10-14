@@ -137,8 +137,8 @@ class Company:
     def wantsAttendee(self, attendee: Attendee) -> bool:
         return any(room.wantsAttendee(attendee) for room in self.rooms)
 
-    def hasAttendee(self, attendee: Attendee) -> bool:
-        return any(room.hasAttendee(attendee) for room in self.rooms)
+    def hasAttendee(self, attendee: Attendee, appToIgnore: Appointment) -> bool:
+        return any(room.hasAttendee(attendee, appToIgnore) for room in self.rooms)
 
     def getAppointments(self) -> list[Appointment]:
         apps = []
@@ -183,10 +183,10 @@ class CompanyRoom:
     def wantsAttendee(self, attendee: Attendee) -> bool:
         return attendee is None or attendee in self.candidates 
 
-    def hasAttendee(self, attendee: Attendee) -> bool:
+    def hasAttendee(self, attendee: Attendee, appToIgnore: Appointment) -> bool:
         if attendee:
             for app in self.appointments:
-                if app.isAttendee(attendee):
+                if app.isAttendee(attendee) and app != appToIgnore:
                     return True
         return False       
 
@@ -219,7 +219,7 @@ class Appointment(TimeInterval):
     def getUtility(self):
         return self.attendee.getPref(self.company) if not self.isEmpty() else 0
 
-    def cantSwapReason(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]]) -> Optional[str]:
+    def cantSwapReason(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]], appToIgnore: Appointment) -> Optional[str]:
         if attendee is not None:
             attId = attendee.uid
             timeStr = repr(TimeInterval(self.time, self.length))
@@ -230,20 +230,21 @@ class Appointment(TimeInterval):
                 return f'Attendee ({attId}) has other apps at time ({timeStr})'
             if attendee.isBusy(self):
                 return f'Attendee ({attId}) has a break at time ({timeStr})'
-            if self.company.hasAttendee(attendee):
+            if self.company.hasAttendee(attendee, appToIgnore):
                 return f'company ({self.company.name}) already has an appointment for attendee ({attId})'
         return None
 
-    def canSwap(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]]) -> bool:
+    def canSwap(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]], appToIgnore: Appointment) -> bool:
+        ValidationException.throwIfFalse(self != appToIgnore)
         return attendee is None or (
             self.companyRoom.wantsAttendee(attendee) 
             and not hasOtherAppsAtTimeCached(attendee, self, overlappingAppCache)
             and not attendee.isBusy(self)
-            and not self.company.hasAttendee(attendee)
+            and not self.company.hasAttendee(attendee, appToIgnore)
         )
 
-    def swap(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]]):
-        if self.canSwap(attendee, overlappingAppCache):
+    def swap(self, attendee: Attendee, overlappingAppCache: dict[Appointment, set[Appointment]], appToIgnore: Appointment):
+        if self.canSwap(attendee, overlappingAppCache, appToIgnore):
             self.attendee = attendee
         else:
             raise Exception('tried to swap an attendee which can\'t be swapped')
@@ -629,16 +630,16 @@ def trySwap(
     def canSwapBoth(app1, att1, app2, att2):
         assert(not(app1 is None and app2 is None))
         return (
-            (app2 is None or app2.canSwap(att1, overlappingAppCache))
-            and (app1 is None or app1.canSwap(att2, overlappingAppCache))
+            (app2 is None or app2.canSwap(att1, overlappingAppCache, app1))
+            and (app1 is None or app1.canSwap(att2, overlappingAppCache, app2))
         )
 
     def swapBoth(app1, att1, app2, att2):
         assert(canSwapBoth(app1, att1, app2, att2))
         if app2:
-            app2.swap(att1, overlappingAppCache)
+            app2.swap(att1, overlappingAppCache, app1)
         if app1:
-            app1.swap(att2, overlappingAppCache)
+            app1.swap(att2, overlappingAppCache, app2)
 
     def printStatus():
         print(
@@ -652,8 +653,8 @@ def trySwap(
     print('swapBoth')
 
     if not canSwapBoth(app1, att1, app2, att2):
-        reason1 = None if app1 is None else app1.cantSwapReason(att2, overlappingAppCache)
-        reason2 = None if app2 is None else app2.cantSwapReason(att1, overlappingAppCache)
+        reason1 = None if app1 is None else app1.cantSwapReason(att2, overlappingAppCache, app2)
+        reason2 = None if app2 is None else app2.cantSwapReason(att1, overlappingAppCache, app1)
         reason = reason1 or reason2
         ValidationException.throwIfFalse(reason is not None)
         return {'error': reason}, 400
@@ -715,16 +716,16 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
     def canSwapBoth(app1, att1, app2, att2):
         assert(not(app1 is None and app2 is None))
         return (
-            (app2 is None or app2.canSwap(att1, overlappingAppCache))
-            and (app1 is None or app1.canSwap(att2, overlappingAppCache))
+            (app2 is None or app2.canSwap(att1, overlappingAppCache, app1))
+            and (app1 is None or app1.canSwap(att2, overlappingAppCache, app2))
         )
 
     def swapBoth(app1, att1, app2, att2):
         assert(canSwapBoth(app1, att1, app2, att2))
         if app2:
-            app2.swap(att1, overlappingAppCache)
+            app2.swap(att1, overlappingAppCache, app1)
         if app1:
-            app1.swap(att2, overlappingAppCache)
+            app1.swap(att2, overlappingAppCache, app2)
 
     def tryMatchEveryone(atts: list[Attendee]):
 
@@ -747,7 +748,7 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                     for c in companies:
                         if c.wantsAttendee(newAtt):
                             for app in c.getAppointments():
-                                if app.isEmpty() and app.canSwap(newAtt, overlappingAppCache):
+                                if app.isEmpty() and app.canSwap(newAtt, overlappingAppCache, None):
                                     validApps.append(app)
                     if validApps:
                         app = max(validApps, key=lambda app: (
@@ -756,7 +757,7 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                             )
                             # choose the least busy spot with the highest preference
                         )
-                        app.swap(newAtt, overlappingAppCache)
+                        app.swap(newAtt, overlappingAppCache, None)
                         #print('free appointments:', sum([len([app for app in c.getAppointments() if app.isEmpty()]) for c in companies]))
                         updateEmptyAppsCache(emptyAppsCache, app)
                         changed = True
@@ -864,10 +865,10 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                         app2 = apps[j]
                         if not app2.isEmpty():
                             att2 = app2.attendee
-                            app2.swap(None, overlappingAppCache)
+                            app2.swap(None, overlappingAppCache, None)
                             
-                            if app1.canSwap(att2, overlappingAppCache):
-                                app1.swap(att2, overlappingAppCache)
+                            if app1.canSwap(att2, overlappingAppCache, app2):
+                                app1.swap(att2, overlappingAppCache, app2)
                                 changed = True
                                 #print(app1, "swapped", att.uid)
                                 #printApps()
@@ -879,18 +880,18 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                                     app3 = apps[k]
                                     if app3.isEmpty(): continue
                                     att3 = app3.attendee
-                                    app3.swap(None, overlappingAppCache)
-                                    if app1.canSwap(att3, overlappingAppCache) and app3.canSwap(att2, overlappingAppCache):
+                                    app3.swap(None, overlappingAppCache, None)
+                                    if app1.canSwap(att3, overlappingAppCache, app3) and app3.canSwap(att2, overlappingAppCache, app2):
                                         #print('ternary swap')
-                                        app1.swap(att3, overlappingAppCache)
-                                        app3.swap(att2, overlappingAppCache)
+                                        app1.swap(att3, overlappingAppCache, app3)
+                                        app3.swap(att2, overlappingAppCache, app2)
                                         changed2 = True
                                         break
                                     else:
-                                        app3.swap(att3, overlappingAppCache)
+                                        app3.swap(att3, overlappingAppCache, None)
 
                                 if not changed2:
-                                    app2.swap(att2, overlappingAppCache)
+                                    app2.swap(att2, overlappingAppCache, None)
                                 else:
                                     changed = True
                                     break
@@ -911,6 +912,13 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
 
     #printApps()
     print("stop:", datetime.now().strftime("%H:%M:%S"))
+
+
+    for company in companies:
+        atts = [app.attendee for app in company.getAppointments() if app.attendee != None]
+        attsUnique = set(atts)
+        assert(len(atts) == len(attsUnique))
+
     return getJsonSchedule(
         companies, 
         attendees, 

@@ -2,7 +2,7 @@ import { strictEqual } from 'assert';
 import React from 'react';
 import Icons from './Icons';
 import './styles/Schedule.css';
-import { CallAPI, RestfulType } from './Utilities';
+import { CallAPI, CallAPIJson, RestfulType } from './Utilities';
 
 interface IAttendee {
     commitments: IInterval[];
@@ -105,15 +105,15 @@ var ATT_TO_ROOMS: {[att: number]: Set<string>} = {};
 var ATT_TO_BREAKS = {};
 
 function ScheduleCompany(
-    {schedule}: 
-    {schedule: ISchedule}
+    {schedule, swapFunc}: 
+    {schedule: ISchedule, swapFunc: (att1?: number, app1?: Object, att2?: number, app2?: Object) => void}
 ){
     let headings = getHeadings(schedule);
     ATT_TO_APPS = {}; // empty out prev
     ATT_TO_ROOMS = {};
     ROOM_TO_COMPANY = {};
 
-    const attKey = 'att', timeKey = 'time', roomKey = 'room';
+    const attKey = 'att', timeKey = 'time', roomKey = 'room', appKey = 'app';
 
     function dragApp(ev: React.DragEvent<HTMLDivElement>) {
         console.log('draggin');
@@ -122,10 +122,13 @@ function ScheduleCompany(
         let attStr = el.dataset.att;
         let timeStr = el.dataset.time;
         let roomStr = el.dataset.room;
+        let appStr = el.dataset.app;
 
         ev.dataTransfer!.setData(attKey, attStr ?? '');
         ev.dataTransfer!.setData(timeKey, timeStr ?? '');
-        ev.dataTransfer!.setData(roomKey, roomStr ?? '');
+        ev.dataTransfer!.setData(roomKey, roomStr ?? '');        
+        ev.dataTransfer!.setData(appKey, appStr ?? '');
+
     }
 
     function dropApp(ev: React.DragEvent<HTMLDivElement>) {
@@ -136,10 +139,12 @@ function ScheduleCompany(
         let attStr = el.dataset.att;
         let timeStr = el.dataset.time;
         let roomStr = el.dataset.room;
+        let appStr = el.dataset.app;
 
         let otherAttStr = ev.dataTransfer!.getData(attKey);
         let otherTimeStr = ev.dataTransfer!.getData(timeKey);
         let otherRoomStr = ev.dataTransfer!.getData(roomKey);
+        let otherAppStr = ev.dataTransfer!.getData(appKey);
 
         if (!timeStr && !otherTimeStr){
             console.log('times both null');
@@ -153,10 +158,14 @@ function ScheduleCompany(
         }
         let room = roomStr || otherRoomStr;
 
-        let getAppStr = (att?: string, time?: string) => `Attendee ${att}${time ? ` @ ${time}` : ''}`;
+        let [att1, att2] = [attStr, otherAttStr].map(s => s ? parseInt(s) : undefined);
+        let [app1, app2] = [appStr, otherAppStr].map(s => s ? JSON.parse(s) : undefined);
 
-        if (window.confirm(`Are you sure you want to swap ${getAppStr(attStr, timeStr)} with ${getAppStr(otherAttStr, otherTimeStr)} for ${room}?`)){
+        let getAppStr = (att?: number, time?: string) => `${att ? `Attendee ${att}` : 'Appointment'}${time ? ` @ ${time}` : ''}`;
+
+        if (window.confirm(`Are you sure you want to swap ${getAppStr(att1, timeStr)} with ${getAppStr(att2, otherTimeStr)} for ${room}?`)){
             console.log('hi');
+            swapFunc(att1, app1, att2, app2);
         }
     }
 
@@ -220,6 +229,7 @@ function ScheduleCompany(
                                             data-att={app.att}
                                             data-time={dateToTimeStr(interval.start)} 
                                             data-room={roomName} 
+                                            data-app={JSON.stringify(app as Object)}
                                             className={`app col centerAll clickable ${app.att ? '' : 'empty'}`} 
                                             draggable 
                                             onDragStart={dragApp} 
@@ -366,10 +376,28 @@ function SchedulePage(){
 
 	let gen = () => {
         setIsLoading(true);
-		CallAPI(`/generateSchedule`, RestfulType.GET)
+		CallAPI('/generateSchedule', RestfulType.GET)
 		.then(({data}: {data: ISchedule}) => {
             setScheduleObj(data);
-			alert(`Generated schedule`);
+		}).catch((res)=>{
+			console.log("res", res);
+			alert(res["error"]);
+		}).finally(()=>setIsLoading(false));
+	}
+
+	let swap = (att1?: number, app1?: Object, att2?: number, app2?: Object) => {
+        setIsLoading(true);
+		CallAPIJson('/swapSchedule', RestfulType.POST, {
+            'data': {
+                ...(scheduleObj as Object),
+                'att1': att1 ?? null,
+                'app1': app1 ?? null,
+                'att2': att2 ?? null,
+                'app2': app2 ?? null
+            }
+        })
+		.then(({data}: {data: ISchedule}) => {
+            setScheduleObj(data);
 		}).catch((res)=>{
 			console.log("res", res);
 			alert(res["error"]);
@@ -387,7 +415,7 @@ function SchedulePage(){
                     <p>Appointments Filled: <span>{scheduleObj.noAttendeesChosen}/{scheduleObj.noAppointments}</span></p>
                 </div>
                 <div id='schedules'>
-                    <ScheduleCompany schedule={scheduleObj}/>
+                    <ScheduleCompany schedule={scheduleObj} swapFunc={swap}/>
                     <ScheduleAttendees schedule={scheduleObj}/>
                 </div>
             </div>
