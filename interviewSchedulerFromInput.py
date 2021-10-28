@@ -14,11 +14,6 @@ love u rach!
 
 def run(companies: list[Company], attendees: list[Attendee], interviewTimes: list[TimeInterval]) -> dict:
     print("start:", datetime.now().strftime("%H:%M:%S"))
-    
-    chosenAttendees = [
-        a for a in attendees 
-        if any(c.wantsAttendee(a) for c in companies)
-    ]
 
     noApps = getNoApps(companies)
 
@@ -37,7 +32,14 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
         for app in cache[notEmptyApp.timeHash]:
             cache[app.timeHash] = cache[app.timeHash] - {notEmptyApp}
 
-    def tryMatchEveryone(atts: list[Attendee], isCoffeeChat = False):
+    def tryMatchEveryone(isCoffeeChat: bool):
+
+        atts = [
+            a for a in attendees 
+            if any(c.wantsAttendee(a, isCoffeeChat) for c in companies)
+        ]
+
+        if not atts: return
 
         atts = sorted(atts, key = lambda att: -len(att.commitments))
         noCompaniesCache = {a.uid: a.getNoCompaniesWant(companies, isCoffeeChat) for a in atts}
@@ -58,7 +60,7 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                     for c in companies:
                         if c.wantsAttendee(newAtt, isCoffeeChat):
                             for app in c.getAppointments():
-                                if app.isEmpty() and app.canSwap(newAtt, appIntersects, None):
+                                if app.isEmpty() and app.canSwap(newAtt, appIntersects, None) and app.isCoffeeChat == isCoffeeChat:
                                     validApps.append(app)
                     if validApps:
                         app = max(validApps, key=lambda app: (
@@ -77,25 +79,30 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
     def printStatus():
         print(
             "\tavg utility:", 
-            f'{getUtility(companies)/len(chosenAttendees):.3f}', 
+            f'{getUtility(companies)}', 
             'matched:', 
             f'{getNoNotEmptyApps(companies)}/{noApps}\n'
         )
 
     print('\ttryMatchEveryone')
-    tryMatchEveryone(chosenAttendees)
+    tryMatchEveryone(False)
     printStatus()
 
-    def maxPref():
+    def maxPref(isCoffeeChat: bool):
 
         appAtts = []
         for c in companies:
             for room in c.rooms:
-                attsNotChosen = set(room.candidates)
+                if isCoffeeChat and room.coffeeChat is None:
+                    continue
+                attsNotChosen = set(
+                    room.coffeeChat.candidates if isCoffeeChat else room.candidates
+                )
                 for app in room.appointments:
-                    appAtts.append([app, app.attendee])
-                    if not app.isEmpty():
-                        attsNotChosen.remove(app.attendee)
+                    if app.isCoffeeChat == isCoffeeChat:
+                        appAtts.append([app, app.attendee])
+                        if not app.isEmpty():
+                            attsNotChosen.remove(app.attendee)
                 appAtts.extend([[None, att] for att in attsNotChosen])
 
         while True:
@@ -122,7 +129,7 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
             if not changed: break
 
     print('\tmaxPref')
-    maxPref()
+    maxPref(False)
     printStatus()
 
     def moveToStartOfDay():
@@ -176,8 +183,16 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
     printStatus()
 
     print('\tmaxPref')
-    maxPref()
+    maxPref(False)
     printStatus()
+
+    print('\ntryMatchEveryone coffee chat')
+    tryMatchEveryone(True)
+    printStatus()
+
+    print('\tmaxPref coffee chat')
+    maxPref(True)
+    printStatus() 
 
     print("stop:", datetime.now().strftime("%H:%M:%S"))
 

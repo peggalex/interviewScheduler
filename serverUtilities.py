@@ -65,8 +65,8 @@ class Company:
         self.rooms.append(CompanyRoom(name, self, times, candidates))
         return self
 
-    def wantsAttendee(self, attendee: Attendee) -> bool:
-        return any(room.wantsAttendee(attendee) for room in self.rooms)
+    def wantsAttendee(self, attendee: Attendee, isCoffeeChat: bool) -> bool:
+        return any(room.wantsAttendee(attendee, isCoffeeChat) for room in self.rooms)
 
     def hasAttendee(self, attendee: Attendee, appToIgnore: Appointment, isCoffeeChat: bool) -> bool:
         return any(room.hasAttendee(attendee, appToIgnore, isCoffeeChat) for room in self.rooms)
@@ -149,7 +149,11 @@ class CompanyRoom:
         self.coffeeChat = None
 
     def wantsAttendee(self, attendee: Attendee, isCoffeeChat: bool) -> bool:
-        return attendee is None or attendee in (self.coffeeChat.candidates if isCoffeeChat else self.candidates)
+        if isCoffeeChat and self.coffeeChat is None:
+            return False
+        elif attendee is None:
+            return True
+        return attendee in (self.coffeeChat.candidates if isCoffeeChat else self.candidates)
 
     def hasAttendee(self, attendee: Attendee, appToIgnore: Appointment, isCoffeeChat: bool) -> bool:
         if attendee:

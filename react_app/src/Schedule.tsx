@@ -289,8 +289,10 @@ function ScheduleCompany(
                                             onDragOver={allowDrop}
                                         >
                                             <div className='appLength'>{interval.lengthMins}m</div>
-                                            <span className='appAtt'>{app.att || '?'}</span>
-                                            <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                            <div className='innerApp col centerAll'>
+                                                <span className='appAtt'>{app.att || '?'}</span>
+                                                <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                            </div>
                                             <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
                                         </div>
                                     </div>
@@ -304,7 +306,9 @@ function ScheduleCompany(
                                         onDrop={dropApp} 
                                         onDragOver={allowDrop}
                                     >
-                                        <span className='appAtt'>remove</span>
+                                        <div className='innerApp col centerAll'>
+                                            <span className='appAtt'>remove</span>
+                                        </div>
                                     </div>
                                 </div>
                                 {Array.from(candidatesNotSelected).map(attId => {
@@ -319,9 +323,11 @@ function ScheduleCompany(
                                             onDragEnd={dragAppEnd}
                                             onDrop={dropApp} 
                                             onDragOver={allowDrop}
-                                        >
-                                            <span className='appPref'>pref: {att.prefs[companyName]}</span>
-                                            <span className='appAtt'>{attId}</span>
+                                        >   
+                                            <div className='innerApp col centerAll'>
+                                                <span className='appPref'>pref: {att.prefs[companyName]}</span>
+                                                <span className='appAtt'>{attId}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 })}
@@ -395,8 +401,10 @@ function ScheduleAttendees(
                                 >
                                     <div className={`app col centerAll ${'empty'}`}>
                                         <div className='appLength'>{interval.lengthMins}m</div>
-                                        <span className='appPref'></span>
-                                        <span className='appAtt'>{'break'}</span>
+                                        <div className='innerApp col centerAll'>
+                                            <span className='appPref'></span>
+                                            <span className='appAtt'>{'break'}</span>
+                                        </div>
                                         <span className='appTime'>{dateToTimeStr(interval.start)}</span>
                                     </div>
                                 </div>
@@ -420,8 +428,10 @@ function ScheduleAttendees(
                                 >
                                     <div className={`app col centerAll ${app.att ? '' : 'empty'}`}>
                                         <div className='appLength'>{interval.lengthMins}m</div>
-                                        <span className='appAtt' title={app.roomName}>{app.roomName}</span>
-                                        <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                        <div className='innerApp col centerAll'>
+                                            <span className='appAtt' title={app.roomName}>{app.roomName}</span>
+                                            <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                        </div>
                                         <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[app.companyName]}`}</span>
                                     </div>
                                 </div>
@@ -430,8 +440,10 @@ function ScheduleAttendees(
                         <td><div className="row">{Array.from(roomsNotSelected).map(roomName => {
                             return <div key={attId} className="appContainer notSelected centerAll">
                                 <div className={`app col centerAll`}>
-                                    <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
-                                    <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
+                                    <div className='innerApp col centerAll'>
+                                        <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
+                                        <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
+                                    </div>
                                 </div>
                             </div>
                         })}</div></td>
