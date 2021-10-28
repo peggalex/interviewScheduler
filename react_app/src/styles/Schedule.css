@@ -1,6 +1,7 @@
 #scheduleCompany, #scheduleAttendee {
     max-height: 90vh;
     overflow-y: scroll;
+    font-size: 0.8rem;
 }
 
 #scheduleAttendee{
@@ -20,7 +21,7 @@
 }
 
 #schedules tr {
-    height: 3rem;
+    height: 3.25rem;
 }
 
 #schedules td:not(:first-child)+td {
@@ -33,14 +34,27 @@
 }
 
 #schedules th:not(#roomNameCol){
-    min-width: 25rem;
+    min-width: 8.5rem;
     /* must be min-width or wont extend beyond parent container */
+}
+
+#scheduleCompany .app * {
+    pointer-events: none;
+}
+
+tr.fadeRoom {
+    opacity: 0.25;
+}
+
+.removeApp {
+    background-color: var(--orange300) !important;
+    border: 0.15rem dashed var(--orange400);
 }
 
 #schedules th {
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: 3;
     background-color: var(--grey200);
     padding: 0 1rem;
 }
@@ -50,7 +64,7 @@
     border-right: solid thin var(--grey300);
     right: 0;
     position: absolute;
-    z-index: 1;
+    z-index: 2;
     top: 0;
     padding: 0;
     margin: 0;
@@ -64,7 +78,7 @@
 #schedules td:first-child {
     position: sticky;
     left: 0;
-    z-index: 1;
+    z-index: 2;
     background-color: var(--grey50);
     padding: 0 1rem;
 }
@@ -74,10 +88,11 @@
     border-radius: 0.25rem;
     background-color: var(--emerald400);
     width: 100%;
-    height: 2.5rem;
+    height: 2.75rem;
     margin: 0 0.25rem;
     position: relative;
     color: white;
+    z-index: 1;
 }
 
 .appContainer {
@@ -91,7 +106,7 @@
 }
 .appContainer.notSelected {
     position: inherit;
-    width: 8rem;
+    width: 5.5rem;
 }
 .app.empty {
     border: dashed thin var(--grey400);
@@ -102,26 +117,33 @@
 .appLength {
     position: absolute;
     font-size: 0.5rem;
-    top: 0.2rem;
-    right: 0.2rem;
     top: .15rem;
     right: .15rem;
 }
 
 .appAtt {
     font-weight: bold;
-    height: 1.25rem;
     text-overflow: ellipsis;
     width: 75%;
     overflow: hidden;
     white-space: nowrap;
+    font-size: .65rem;
+}
+
+.appPref, .appLength {
+    font-size: 0.3rem;
+    font-weight: 600;
+}
+
+.appPref {
+    position: absolute;
+    right: 0.15rem;
+    bottom: 0.15rem;
 }
 
 #scheduleAttendee .appAtt {
-    font-size: 0.85rem;
+    /*font-size: 0.85rem;*/
 }
-
-
 
 .app.empty .appTime, .app.empty .appLength {
     color: var(--grey400);
@@ -129,13 +151,16 @@
 
 .appTime, .appLength, .appPref {
     color: var(--grey100);
-    font-size: 0.5rem;
+}
+
+.appTime {
+    font-size: 0.35rem;
 }
 
 .appPref {
-    position: absolute;
+    /*position: absolute;
     right: 0.15rem;
-    bottom: 0.15rem;
+    bottom: 0.15rem;*/
 }
 
 .appTime {

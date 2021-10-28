@@ -43,8 +43,10 @@ function FileUpload({table, tableData, updateTableData}: {table: Table, tableDat
         
         setIsLoading(true);
         
-        CallAPI(`/set${table.endpoint}`, RestfulType.POST, data)
-        .then(({data}: {data: string[][]}) => {
+        CallAPI(
+            `/set${table.endpoint}`, 
+            RestfulType.POST, data
+        ).then(({data}: {data: string[][]}) => {
             alert(`Uploaded table: ${table.name}`);
             updateTableData(tableData);
         }).catch((res)=>{

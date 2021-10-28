@@ -104,16 +104,28 @@ var ROOM_TO_COMPANY: {[room: string]: string} = {};
 var ATT_TO_ROOMS: {[att: number]: Set<string>} = {};
 var ATT_TO_BREAKS = {};
 
+var DRAGGING_APP: {
+    app: string|null, 
+    room: string|null, 
+    att: string|null, 
+    time: string|null
+} = {
+    'app': null,
+    'room': null,
+    'att': null,
+    'time': null
+}
+
 function ScheduleCompany(
     {schedule, swapFunc}: 
-    {schedule: ISchedule, swapFunc: (att1?: number, app1?: Object, att2?: number, app2?: Object) => void}
+    {schedule: ISchedule, swapFunc: (app1?: Object, att1?: number, app2?: Object, att2?: number) => void}
 ){
     let headings = getHeadings(schedule);
     ATT_TO_APPS = {}; // empty out prev
     ATT_TO_ROOMS = {};
     ROOM_TO_COMPANY = {};
 
-    const attKey = 'att', timeKey = 'time', roomKey = 'room', appKey = 'app';
+    //const attKey = 'att', timeKey = 'time', roomKey = 'room', appKey = 'app';
 
     function dragApp(ev: React.DragEvent<HTMLDivElement>) {
         console.log('draggin');
@@ -124,11 +136,21 @@ function ScheduleCompany(
         let roomStr = el.dataset.room;
         let appStr = el.dataset.app;
 
-        ev.dataTransfer!.setData(attKey, attStr ?? '');
+        /*ev.dataTransfer!.setData(attKey, attStr ?? '');
         ev.dataTransfer!.setData(timeKey, timeStr ?? '');
         ev.dataTransfer!.setData(roomKey, roomStr ?? '');        
-        ev.dataTransfer!.setData(appKey, appStr ?? '');
+        ev.dataTransfer!.setData(appKey, appStr ?? '');*/
 
+        DRAGGING_APP.att = attStr ?? '';
+        DRAGGING_APP.time = timeStr ?? '';
+        DRAGGING_APP.room = roomStr ?? '';
+        DRAGGING_APP.app = appStr ?? '';
+
+        document.querySelectorAll(
+            `#scheduleCompany tbody tr:not([data-room='${roomStr}'])`
+        ).forEach(row => {
+            row.classList.add('fadeRoom');
+        });
     }
 
     function dropApp(ev: React.DragEvent<HTMLDivElement>) {
@@ -141,37 +163,66 @@ function ScheduleCompany(
         let roomStr = el.dataset.room;
         let appStr = el.dataset.app;
 
-        let otherAttStr = ev.dataTransfer!.getData(attKey);
+        /*let otherAttStr = ev.dataTransfer!.getData(attKey);
         let otherTimeStr = ev.dataTransfer!.getData(timeKey);
         let otherRoomStr = ev.dataTransfer!.getData(roomKey);
-        let otherAppStr = ev.dataTransfer!.getData(appKey);
+        let otherAppStr = ev.dataTransfer!.getData(appKey);*/
 
-        if (!timeStr && !otherTimeStr){
-            console.log('times both null');
-            return;
-        } else if (timeStr == otherTimeStr){
-            console.log('times same');
-            return;
-        } else if (roomStr != otherRoomStr){
-            console.log('diff rooms');
-            return;
-        }
+        let otherAttStr = DRAGGING_APP.att;
+        let otherTimeStr = DRAGGING_APP.time;
+        let otherRoomStr = DRAGGING_APP.room;
+        let otherAppStr = DRAGGING_APP.app;
+
         let room = roomStr || otherRoomStr;
 
         let [att1, att2] = [attStr, otherAttStr].map(s => s ? parseInt(s) : undefined);
         let [app1, app2] = [appStr, otherAppStr].map(s => s ? JSON.parse(s) : undefined);
 
-        let getAppStr = (att?: number, time?: string) => `${att ? `Attendee ${att}` : 'Appointment'}${time ? ` @ ${time}` : ''}`;
+        let getAppStr = (att?: number, time?: string|null) => `${att ? `Attendee ${att}` : 'Appointment'}${time ? ` @ ${time}` : ''}`;
 
-        if (window.confirm(`Are you sure you want to swap ${getAppStr(att1, timeStr)} with ${getAppStr(att2, otherTimeStr)} for ${room}?`)){
+        if (!att1 && !app1){
+            
+        }
+        if (window.confirm(
+                (!att1 && !app1) ? 
+                `Are you sure you want to move ${getAppStr(att2, otherTimeStr)} out of the schedule (to the extra column) for ${room}?` : 
+                `Are you sure you want to swap ${getAppStr(att2, otherTimeStr)} with ${getAppStr(att1, timeStr)} for ${room}?`
+            )){
             console.log('hi');
-            swapFunc(att1, app1, att2, app2);
+            swapFunc(app1, att1, app2, att2);
         }
     }
 
     function allowDrop(ev: any) {
-        ev.preventDefault();
-      }
+
+        let el = ev.target;
+        let attStr = el.dataset.att;
+        let timeStr = el.dataset.time;
+        let roomStr = el.dataset.room;
+        let appStr = el.dataset.app;
+
+        let otherAttStr = DRAGGING_APP.att;
+        let otherTimeStr = DRAGGING_APP.time;
+        let otherRoomStr = DRAGGING_APP.room;
+        let otherAppStr = DRAGGING_APP.app;
+
+        if (!(
+            (!timeStr && !otherTimeStr) ||
+            (timeStr == otherTimeStr) ||
+            (roomStr != otherRoomStr) ||
+            (!attStr && !otherAttStr) ||
+            (!appStr && !otherAppStr)
+        )){
+            // if these conditions are false, allow drag by preventDefault
+            ev.preventDefault();
+        }
+    }
+
+    function dragAppEnd(ev: any){
+        document.querySelectorAll("#scheduleCompany tbody tr.fadeRoom").forEach(row => {
+            row.classList.remove('fadeRoom');
+        });
+    }
 
     return <div id='scheduleCompany'>
         <table>
@@ -204,7 +255,7 @@ function ScheduleCompany(
                             ROOM_TO_COMPANY[roomName] = companyName;
                         }
                         /* as we iterate over apps, remove attendees who are selected */
-                        return <tr>
+                        return <tr data-room={roomName}>
                             <td>{roomName}</td>
                             {headings.map(heading => <td key={+heading}>{
                                 (timeToApp[+heading] || []).map(app => {
@@ -230,29 +281,51 @@ function ScheduleCompany(
                                             data-time={dateToTimeStr(interval.start)} 
                                             data-room={roomName} 
                                             data-app={JSON.stringify(app as Object)}
-                                            className={`app col centerAll clickable ${app.att ? '' : 'empty'}`} 
-                                            draggable 
+                                            className={`app col centerAll ${app.att ? '' : 'empty'}`} 
+                                            draggable={app.att != null}
                                             onDragStart={dragApp} 
+                                            onDragEnd={dragAppEnd}
                                             onDrop={dropApp} 
                                             onDragOver={allowDrop}
                                         >
                                             <div className='appLength'>{interval.lengthMins}m</div>
-                                            <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
                                             <span className='appAtt'>{app.att || '?'}</span>
                                             <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                            <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
                                         </div>
                                     </div>
                                 })
                             }</td>)}
-                            <td><div className="row">{Array.from(candidatesNotSelected).map(attId => {
-                                let att = schedule.attendees[attId];
-                                return <div key={attId} className="appContainer notSelected centerAll">
-                                    <div className={`app col centerAll clickable`} draggable data-att={attId} data-room={roomName} onDragStart={dragApp} onDrop={dropApp} onDragOver={allowDrop}>
-                                        <span className='appPref'>pref: {att.prefs[companyName]}</span>
-                                        <span className='appAtt'>{attId}</span>
+                            <td><div className="row">
+                                <div className="appContainer notSelected centerAll">
+                                    <div 
+                                        className={`app removeApp col centerAll`} 
+                                        data-room={roomName} 
+                                        onDrop={dropApp} 
+                                        onDragOver={allowDrop}
+                                    >
+                                        <span className='appAtt'>remove</span>
                                     </div>
                                 </div>
-                            })}</div></td>
+                                {Array.from(candidatesNotSelected).map(attId => {
+                                    let att = schedule.attendees[attId];
+                                    return <div key={attId} className="appContainer notSelected centerAll">
+                                        <div 
+                                            className={`app col centerAll`} 
+                                            draggable 
+                                            data-att={attId} 
+                                            data-room={roomName} 
+                                            onDragStart={dragApp} 
+                                            onDragEnd={dragAppEnd}
+                                            onDrop={dropApp} 
+                                            onDragOver={allowDrop}
+                                        >
+                                            <span className='appPref'>pref: {att.prefs[companyName]}</span>
+                                            <span className='appAtt'>{attId}</span>
+                                        </div>
+                                    </div>
+                                })}
+                            </div></td>
                         </tr>
                     })
                 })}
@@ -347,9 +420,9 @@ function ScheduleAttendees(
                                 >
                                     <div className={`app col centerAll ${app.att ? '' : 'empty'}`}>
                                         <div className='appLength'>{interval.lengthMins}m</div>
-                                        <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[app.companyName]}`}</span>
                                         <span className='appAtt' title={app.roomName}>{app.roomName}</span>
                                         <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                        <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[app.companyName]}`}</span>
                                     </div>
                                 </div>
                             })
@@ -376,8 +449,10 @@ function SchedulePage(){
 
 	let gen = () => {
         setIsLoading(true);
-		CallAPI('/generateSchedule', RestfulType.GET)
-		.then(({data}: {data: ISchedule}) => {
+		CallAPI(
+            '/generateSchedule', 
+            RestfulType.GET
+        ).then(({data}: {data: ISchedule}) => {
             setScheduleObj(data);
 		}).catch((res)=>{
 			console.log("res", res);
@@ -385,19 +460,32 @@ function SchedulePage(){
 		}).finally(()=>setIsLoading(false));
 	}
 
-	let swap = (att1?: number, app1?: Object, att2?: number, app2?: Object) => {
+	let swap = (app1?: Object, att1?: number, app2?: Object, att2?: number) => {
         setIsLoading(true);
 		CallAPIJson('/swapSchedule', RestfulType.POST, {
             'data': {
                 ...(scheduleObj as Object),
-                'att1': att1 ?? null,
                 'app1': app1 ?? null,
-                'att2': att2 ?? null,
-                'app2': app2 ?? null
+                'att1': att1 ?? null,
+                'app2': app2 ?? null,
+                'att2': att2 ?? null
             }
-        })
-		.then(({data}: {data: ISchedule}) => {
+        }).then(({data}: {data: ISchedule}) => {
             setScheduleObj(data);
+		}).catch((res)=>{
+			console.log("res", res);
+			alert(res["error"]);
+		}).finally(()=>setIsLoading(false));
+	}
+
+	let writeSchedule = () => {
+        setIsLoading(true);
+		CallAPIJson(
+            '/writeSchedule', 
+            RestfulType.POST, 
+            {'data': scheduleObj}
+        ).then(({data: {filename}}: {data: {filename: string}}) => {
+            alert(`written to file: '${filename}' in your app directory`);
 		}).catch((res)=>{
 			console.log("res", res);
 			alert(res["error"]);
@@ -418,6 +506,7 @@ function SchedulePage(){
                     <ScheduleCompany schedule={scheduleObj} swapFunc={swap}/>
                     <ScheduleAttendees schedule={scheduleObj}/>
                 </div>
+                <button onClick={writeSchedule}>write schedule</button>
             </div>
         }
     </div>

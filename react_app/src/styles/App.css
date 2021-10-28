@@ -2,6 +2,14 @@
 
 }
 
+*[draggable="true"] {
+  cursor: move;
+}
+
+*[draggable="true"]:active{
+  cursor: grabbing;
+}
+
 .loader {
   --loaderDiameter: 3rem;
   border: calc(var(--loaderDiameter) / 4) solid var(--grey200);

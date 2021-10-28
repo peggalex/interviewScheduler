@@ -1,9 +1,9 @@
-from Schema import ATTENDEEBREAKS_TABLE, ATTENDEEPREFS_TABLE, ATTENDEES_TABLE, COMPANY_TABLE, INTERVIEWTIME_END_COL, INTERVIEWTIME_START_COL, INTERVIEWTIME_TABLE, ROOM_TABLE, ROOMBREAKS_TABLE, ROOMCANDIDATES_TABLE, GetAttendeeBreaks, GetAttendeePrefs, GetAttendees, GetCompanies, GetInterviewTimes, GetRoomBreaks, GetRoomCandidates, GetRooms, clearAllTables
+from Schema import ATTENDEEBREAKS_TABLE, ATTENDEEPREFS_TABLE, ATTENDEES_TABLE, COMPANY_TABLE, INTERVIEWTIME_TABLE, ROOM_TABLE, ROOMBREAKS_TABLE, ROOMCANDIDATES_TABLE, GetInterviewTimes
 import traceback
 import logging as notFlaskLogging
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import *
-from typing import Callable, Union, Optional, Any
+from typing import Callable, Any
 import webbrowser
 
 from serverUtilities import ValidationException
@@ -12,8 +12,7 @@ from os import path
 from SqliteLib import Column, SqliteDB, Table
 from sqlite3 import OperationalError as sqlite3Error
 
-from interviewSchedulerFromInput import (
-    parseJsonSchedule,
+from parseTable import (
     readInterviewTimes, 
     readCompanyNames,
     readRoomNames,
@@ -22,11 +21,17 @@ from interviewSchedulerFromInput import (
     readAttendeeBreaks,
     readAttendeePrefs,
     readRoomCandidates,
-    setAttendeeAndCompanies,
-    getFileContents,
-    run,
-    trySwap
+    setAttendeeAndCompanies,  
 )
+
+from parseSchedule import (
+    parseJsonSchedule,
+    parseJsonSwapSchedule,
+)
+
+from writeSchedule import writeSchedule
+from trySwap import trySwap
+from interviewSchedulerFromInput import run
 
 notFlaskLogging.basicConfig(level=notFlaskLogging.DEBUG)
 app = Flask(__name__, static_folder='./react_app/build/static', template_folder="./react_app/build")
@@ -194,8 +199,20 @@ def swapScheduleHandler() -> ResponseType:
     with SqliteDB() as cursor:
         try:
             data = request.get_json()['data']
-            companies, atts, interviewTimes, app1, att1, app2, att2 = parseJsonSchedule(data)
-            return trySwap(companies, atts, interviewTimes, app1, att1, app2, att2)
+            companies, atts, interviewTimes, app1, att1, app2, att2 = parseJsonSwapSchedule(data)
+            return {"data": trySwap(companies, atts, interviewTimes, app1, att1, app2, att2)}, 200
+        except Exception as e:
+            return handleException(cursor, e)
+
+@app.route('/writeSchedule', methods=['POST'])
+def writeScheduleHandler() -> ResponseType:
+    with SqliteDB() as cursor:
+        try:
+            data = request.get_json()['data']
+            companies, atts, interviewTimes = parseJsonSchedule(data)
+            filename = f"Interview Schedule {datetime.now().isoformat()[:-7].replace(':', '.')}.csv"
+            writeSchedule(filename, companies)
+            return {'data': {'filename': filename}}, 200
         except Exception as e:
             return handleException(cursor, e)
 
