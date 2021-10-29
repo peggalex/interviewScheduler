@@ -61,9 +61,10 @@ class Company:
         self.name = name
         self.rooms = []
 
-    def addCompanyRoom(self, name: str, times: list[datetime], candidates: list[Attendee]):
-        self.rooms.append(CompanyRoom(name, self, times, candidates))
-        return self
+    def addCompanyRoom(self, name: str, times: list[datetime], candidates: set[Attendee]) -> CompanyRoom:
+        room = CompanyRoom(name, self, times, candidates)
+        self.rooms.append(room)
+        return room
 
     def wantsAttendee(self, attendee: Attendee, isCoffeeChat: bool) -> bool:
         return any(room.wantsAttendee(attendee, isCoffeeChat) for room in self.rooms)
@@ -118,17 +119,17 @@ class AppointmentIntersects:
         return False
 
 
-class CoffeeChat:
-
-    def __init__(self, capacity: int, timeInt: TimeInterval, candidates: list[Attendee], room: CompanyRoom):
+class CoffeeChat(TimeInterval):
+    def __init__(self, capacity: int, timeInt: TimeInterval, candidates: set[Attendee], room: CompanyRoom):
+        super().__init__(timeInt.time, timeInt.length)
         self.capacity = capacity
-        self.timeInt = timeInt
         self.candidates = candidates
         self.room = room
         for _ in range(capacity):
             room.appointments.append(
-                Appointment(room, timeInt.time, timeInt.length, isCoffeeChat=True)
+                Appointment(room, self.time, self.length, isCoffeeChat=True)
             )
+        room.appointments.sort(key=lambda a: a.time)
 
     def wantsAttendee(self, attendee: Attendee) -> bool:
         return attendee is None or attendee in self.candidates 
@@ -136,13 +137,26 @@ class CoffeeChat:
     def hasAttendee(self, attendee: Attendee) -> bool:
         return attendee in self.attendees
 
+    def toJson(self) -> dict:
+        return {
+            "capacity": self.capacity,
+            "candidates": [a.uid for a in self.candidates],
+            **super().toJson()
+        }
+
 class CompanyRoom:
 
-    def __init__(self, name: str, company: Company, times: list[datetime], candidates: list[Attendee]):
+    def __init__(
+        self, 
+        name: str, 
+        company: Company, 
+        times: list[datetime], 
+        candidates: set[Attendee]
+     ):
         self.name = name
         self.company = company
         self.times = times
-        self.candidates = set(candidates)
+        self.candidates = candidates
         self.appointments = [
             Appointment(self, time.time, time.length) for time in times
         ]
@@ -162,7 +176,7 @@ class CompanyRoom:
                     return True
         return False       
 
-    def setCoffeeChat(self, capacity: int, timeInt: TimeInterval, candidates: list[Attendee]):
+    def setCoffeeChat(self, capacity: int, timeInt: TimeInterval, candidates: set[Attendee]):
         assert(self.coffeeChat is None)
         self.coffeeChat = CoffeeChat(capacity, timeInt, candidates, self)
 
@@ -172,6 +186,7 @@ class CompanyRoom:
     def toJson(self) -> dict[str, Any]:
         return {
             'candidates': list([c.uid for c in self.candidates]), 
+            'coffeeChat': self.coffeeChat.toJson() if self.coffeeChat else None,
             'apps': [app.toJson() for app in self.appointments]
         }
             
@@ -230,6 +245,7 @@ class Appointment(TimeInterval):
         return {
             'room': self.companyRoom.name,
             'att': self.attendee.uid if self.attendee is not None else None,
+            'isCoffeeChat': self.isCoffeeChat,
             **super().toJson()
         }
 
@@ -298,17 +314,18 @@ def swapBoth(app1, att1, app2, att2, appIntersects):
         app1.swap(att2, appIntersects, app2)
 
 def getAttUtility(app, att) -> int:
-    return att.prefsDic[app.company] if app and att else -1000
-    # why -1000 and not negative infinity? because if we are comparing two options,
-    # sum(5, -1000) can be compared to sum(10, -1000)
-    # but sum(5, -inf) is the same as sum(10, -inf)
-    # it's important to pick a value s.t. maxPref - 1000 < 2*minPref
+    return att.prefsDic[app.company] if app and att else 1000
+    # why 1000 and not infinity? because if we are comparing two options,
+    # sum(5, 1000) can be compared to sum(10, 1000)
+    # but sum(5, inf) is the same as sum(10, inf)
+    # it's important to pick a value s.t. minPref + 1000 > 2*maxPref,
+    #   so that it is always more preferable to match two people than one
 
 def shouldSwap(app1, att1, app2, att2, appIntersects) -> bool:
     canSwap = canSwapBoth(app1, att1, app2, att2, appIntersects)
     currentUtil = getAttUtility(app1, att1) + getAttUtility(app2, att2)
     swapUtil = getAttUtility(app1, att2) + getAttUtility(app2, att1)
-    return canSwap and currentUtil < swapUtil # strictly less than
+    return canSwap and swapUtil < currentUtil # strictly less than
 
 def getNoApps(companies: list[Company]) -> int:
     return sum(len(c.getAppointments()) for c in companies)

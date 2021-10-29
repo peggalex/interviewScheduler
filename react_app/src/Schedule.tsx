@@ -35,6 +35,7 @@ class Interval {
 
 interface IAppointment extends IInterval {
     att?: number;
+    isCoffeeChat: boolean;
     room: string;
 }
 
@@ -42,12 +43,16 @@ class Appointment {
     att?: number;
     companyName: string;
     roomName: string;
+    interval: Interval;
+    isCoffeeChat: boolean;
     iApp: IAppointment;
 
-    constructor(att: number, companyName: string, roomName: string, iApp: IAppointment){
+    constructor(att: number|undefined, companyName: string, roomName: string, iApp: IAppointment){
         this.att = att;
         this.companyName = companyName;
         this.roomName = roomName;
+        this.interval = Interval.fromStr(iApp);
+        this.isCoffeeChat = iApp.isCoffeeChat;
         this.iApp = iApp;
     }
 }
@@ -102,6 +107,7 @@ function dateToStr(date: Date){
 var ATT_TO_APPS: {[att: number]: Appointment[]} = {};
 var ROOM_TO_COMPANY: {[room: string]: string} = {};
 var ATT_TO_ROOMS: {[att: number]: Set<string>} = {};
+var ROOM_TO_COFFEECHATAPPS: {[room: string]: Appointment[]} = {};
 var ATT_TO_BREAKS = {};
 
 var DRAGGING_APP: {
@@ -237,10 +243,21 @@ function ScheduleCompany(
                 {Object.entries(schedule.companies).map(([companyName, rooms]) => {
                     return Object.entries(rooms).map(([roomName, room]) => {
 
-                        let timeToApp: {[time: number]: IAppointment[]} = {}
+                        let timeToApp: {[time: number]: Appointment[]} = {};
+                        let addedInCoffeeChat = false;
                         let i = 0;
-                        for (let app of room.apps) {
-                            let interval = Interval.fromStr(app);
+    
+                        for (let iApp of room.apps) {
+                            let app = new Appointment(iApp.att, companyName, roomName, iApp);
+                            if (app.isCoffeeChat){
+                                ROOM_TO_COFFEECHATAPPS[roomName] = [...(ROOM_TO_COFFEECHATAPPS[roomName] || []), app];
+                                if (addedInCoffeeChat){
+                                    continue; // only use one coffee chat
+                                } else {
+                                    addedInCoffeeChat = true;
+                                }
+                            }
+                            let interval = app.interval;
 
                             for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
 
@@ -261,10 +278,9 @@ function ScheduleCompany(
                                 (timeToApp[+heading] || []).map(app => {
                                     if (app.att != null){
                                         candidatesNotSelected.delete(app.att);
-                                        ATT_TO_APPS[app.att] = ATT_TO_APPS[app.att] || [];
-                                        ATT_TO_APPS[app.att].push(new Appointment(app.att, companyName, roomName, app));
+                                        ATT_TO_APPS[app.att] = [...(ATT_TO_APPS[app.att] || []), app];
                                     }
-                                    let interval = Interval.fromStr(app);
+                                    let interval = app.interval;
                                     let lengthPercent = (interval.lengthMins / 60) * 100;
                                     let startPercent = (interval.start.getMinutes() / 60) * 100;
                                     let att = app.att == null ? null : schedule.attendees[app.att!];
@@ -277,23 +293,22 @@ function ScheduleCompany(
                                         key={roomName + interval.toString()}
                                     >
                                         <div
-                                            data-att={app.att}
+                                            data-att={app.isCoffeeChat ? null : app.att}
                                             data-time={dateToTimeStr(interval.start)} 
                                             data-room={roomName} 
                                             data-app={JSON.stringify(app as Object)}
-                                            className={`app col centerAll ${app.att ? '' : 'empty'}`} 
-                                            draggable={app.att != null}
-                                            onDragStart={dragApp} 
-                                            onDragEnd={dragAppEnd}
-                                            onDrop={dropApp} 
-                                            onDragOver={allowDrop}
+                                            className={`app col centerAll ${app.att ? '' : 'empty'} ${app.isCoffeeChat ? 'cc' : ''}`} 
+                                            draggable={app.att != null && !app.isCoffeeChat}
+                                            onDragStart={app.isCoffeeChat ? ()=>{} : dragApp} 
+                                            onDragEnd={app.isCoffeeChat ? ()=>{} : dragAppEnd}
+                                            onDrop={app.isCoffeeChat ? ()=>{} : dropApp} 
+                                            onDragOver={app.isCoffeeChat ? ()=>{} : allowDrop}
                                         >
+                                            {app.isCoffeeChat ? <div className='ccIcon'>{Icons.Coffee}</div> : null}
                                             <div className='appLength'>{interval.lengthMins}m</div>
-                                            <div className='innerApp col centerAll'>
-                                                <span className='appAtt'>{app.att || '?'}</span>
-                                                <span className='appTime'>{dateToTimeStr(interval.start)}</span>
-                                            </div>
-                                            <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
+                                            <span className='appAtt'>{app.isCoffeeChat ? 'coffee chat' : app.att || '?'}</span>
+                                            <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                            <span className='appPref'>{att == null || app.isCoffeeChat ? null : `pref: ${att?.prefs[companyName]}`}</span>
                                         </div>
                                     </div>
                                 })
@@ -306,9 +321,7 @@ function ScheduleCompany(
                                         onDrop={dropApp} 
                                         onDragOver={allowDrop}
                                     >
-                                        <div className='innerApp col centerAll'>
-                                            <span className='appAtt'>remove</span>
-                                        </div>
+                                        <span className='appAtt'>remove</span>
                                     </div>
                                 </div>
                                 {Array.from(candidatesNotSelected).map(attId => {
@@ -324,10 +337,8 @@ function ScheduleCompany(
                                             onDrop={dropApp} 
                                             onDragOver={allowDrop}
                                         >   
-                                            <div className='innerApp col centerAll'>
-                                                <span className='appPref'>pref: {att.prefs[companyName]}</span>
-                                                <span className='appAtt'>{attId}</span>
-                                            </div>
+                                            <span className='appPref'>pref: {att.prefs[companyName]}</span>
+                                            <span className='appAtt'>{attId}</span>
                                         </div>
                                     </div>
                                 })}
@@ -401,10 +412,8 @@ function ScheduleAttendees(
                                 >
                                     <div className={`app col centerAll ${'empty'}`}>
                                         <div className='appLength'>{interval.lengthMins}m</div>
-                                        <div className='innerApp col centerAll'>
-                                            <span className='appPref'></span>
-                                            <span className='appAtt'>{'break'}</span>
-                                        </div>
+                                        <span className='appPref'></span>
+                                        <span className='appAtt'>{'break'}</span>
                                         <span className='appTime'>{dateToTimeStr(interval.start)}</span>
                                     </div>
                                 </div>
@@ -426,12 +435,11 @@ function ScheduleAttendees(
                                     }}
                                     key={attId + interval.toString()}
                                 >
-                                    <div className={`app col centerAll ${app.att ? '' : 'empty'}`}>
+                                    <div className={`app col centerAll ${app.att ? '' : 'empty'} ${app.isCoffeeChat ? 'cc' : ''}`}>
+                                        {app.isCoffeeChat ? <div className='ccIcon'>{Icons.Coffee}</div> : null}
                                         <div className='appLength'>{interval.lengthMins}m</div>
-                                        <div className='innerApp col centerAll'>
-                                            <span className='appAtt' title={app.roomName}>{app.roomName}</span>
-                                            <span className='appTime'>{dateToTimeStr(interval.start)}</span>
-                                        </div>
+                                        <span className='appAtt' title={app.roomName}>{app.roomName}</span>
+                                        <span className='appTime'>{dateToTimeStr(interval.start)}</span>
                                         <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[app.companyName]}`}</span>
                                     </div>
                                 </div>
@@ -440,10 +448,8 @@ function ScheduleAttendees(
                         <td><div className="row">{Array.from(roomsNotSelected).map(roomName => {
                             return <div key={attId} className="appContainer notSelected centerAll">
                                 <div className={`app col centerAll`}>
-                                    <div className='innerApp col centerAll'>
-                                        <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
-                                        <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
-                                    </div>
+                                    <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
+                                    <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
                                 </div>
                             </div>
                         })}</div></td>
@@ -508,10 +514,12 @@ function SchedulePage(){
         <button id='generateButt' className='row centerAll' onClick={gen}>
             {Icons.Generate}<p>generate schedule</p>
         </button>
-        {scheduleObj==null ? (isLoading ? <div className="loader"></div> : null) :
+        {isLoading ? <div className="loader"></div> : (scheduleObj==null ? null :
             <div>
                 <div id='schedulesStats' className='row center'>
-                    <p>Total Utility: <span>{scheduleObj.totalUtility}</span></p>
+                    <p>Average Rank: <span>{(
+                        scheduleObj.totalUtility/scheduleObj.noAttendeesChosen).toFixed(2)
+                    }</span></p>
                     <p>Appointments Filled: <span>{scheduleObj.noAttendeesChosen}/{scheduleObj.noAppointments}</span></p>
                 </div>
                 <div id='schedules'>
@@ -520,7 +528,7 @@ function SchedulePage(){
                 </div>
                 <button onClick={writeSchedule}>write schedule</button>
             </div>
-        }
+        )}
     </div>
 }
 

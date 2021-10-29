@@ -1,9 +1,10 @@
 from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Callable
-from parseTable import getFileContents, readAttendeeBreaks, readAttendeeNames, readAttendeePrefs, readCompanyNames, readInterviewTimes, readRoomBreaks, readRoomCandidates, readRoomNames, setAttendeeAndCompanies, tryToReadTable
+from parseTable import getFileContents, readAttendeeBreaks, readAttendeeNames, readAttendeePrefs, readCoffeeChat, readCoffeeChatCandidates, readCompanyNames, readInterviewTimes, readRoomBreaks, readRoomCandidates, readRoomNames, setAttendeeAndCompanies, tryToReadTable
 from serverUtilities import EXCEL_DATETIME_FORMAT, Appointment, AppointmentIntersects, Attendee, Company, TimeIntervalHash, ValidationException, TimeInterval, getJsonSchedule, getNoApps, getNoNotEmptyApps, getUtility, shouldSwap, swapBoth
 from Schema import *
+from writeSchedule import writeSchedule
 import cProfile
 
 """ 
@@ -20,7 +21,7 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
     print('getOverlappingApps')
     appIntersects = AppointmentIntersects(companies)
 
-    def initEmptyAppsCache(appIntersects: AppointmentIntersects) -> dict[TimeIntervalHash][set[Appointment]]:
+    def initEmptyAppsCache(appIntersects: AppointmentIntersects) -> dict[TimeIntervalHash, set[Appointment]]:
         return {
             timeIntHash:appSet.copy() 
             for timeIntHash,appSet 
@@ -65,9 +66,9 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                     if validApps:
                         app = max(validApps, key=lambda app: (
                                 len(emptyAppsCache[app.timeHash]), 
-                                newAtt.getPref(app.company)
+                                -newAtt.getPref(app.company)
                             )
-                            # choose the least busy spot with the highest preference
+                            # choose the least busy spot with the lowest preference
                         )
                         app.swap(newAtt, appIntersects, None)
                         updateEmptyAppsCache(emptyAppsCache, app)
@@ -196,11 +197,6 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
 
     print("stop:", datetime.now().strftime("%H:%M:%S"))
 
-    for company in companies:
-        atts = [app.attendee for app in company.getAppointments() if app.attendee != None]
-        attsUnique = set(atts)
-        assert(len(atts) == len(attsUnique))
-
     return getJsonSchedule(
         companies, 
         attendees, 
@@ -219,10 +215,12 @@ if __name__ == "__main__":
                 (readCompanyNames, 'companyList.csv'),
                 (readRoomNames, 'companyRoomsList.csv'),
                 (readRoomBreaks, 'companyBreakList.csv'),
+                (readCoffeeChat, 'coffeeChatList.csv'),
                 (readAttendeeNames, 'attendeesList.csv'),
                 (readAttendeeBreaks, 'attendeeBreaksList.csv'),
                 (readAttendeePrefs, 'attendeePreferencesList.csv'),
-                (readRoomCandidates, 'roomCandidatesList.csv')
+                (readRoomCandidates, 'roomCandidatesList.csv'),
+                (readCoffeeChatCandidates, 'coffeeChatCandidatesList.csv')
             ]:
                 func(getFileContents(filename), cursor)
         else:
@@ -230,11 +228,13 @@ if __name__ == "__main__":
                 (readInterviewTimes, 'interview times list'),
                 (readCompanyNames, 'company list'),
                 (readRoomNames, 'room list'),
+                (readCoffeeChat, 'coffee chat list'),
                 (readRoomBreaks, 'room breaks list'),
                 (readAttendeeNames, 'attendees list'),
                 (readAttendeeBreaks, 'attendee breaks list'),
                 (readAttendeePrefs, 'attendee preferences list'),
-                (readRoomCandidates, 'room candidates list')
+                (readRoomCandidates, 'room candidates list'),
+                (readCoffeeChatCandidates, 'coffee chat candidates list')
             ]:
                 tryToReadTable(cursor, func, tableName)
 
@@ -245,4 +245,8 @@ if __name__ == "__main__":
         print('done readin')
 
         #cProfile.run('run(companies, attendees, GetInterviewTimes(cursor))')
+        print('creating schedule...')
         run(companies, attendees, GetInterviewTimes(cursor))
+        filename = f"Interview Schedule {datetime.now().isoformat()[:-7].replace(':', '.')}.csv"
+        writeSchedule(filename, companies)
+        print(f"wrote schedule to file '{filename}'")

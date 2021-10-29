@@ -89,7 +89,6 @@ tr.fadeRoom {
     background-color: var(--emerald400);
     width: 100%;
     height: 2.75rem;
-    margin: 0 0.25rem;
     position: relative;
     color: white;
     z-index: 1;
@@ -100,6 +99,7 @@ tr.fadeRoom {
     box-sizing: border-box;
     top: 0;
     height: 100%;
+    padding: 0 0.25rem;
 }
 .notSelected .app {
     background-color: var(--orange400);
@@ -207,4 +207,22 @@ tr.fadeRoom {
 
 #schedulesStats p + p {
     margin-left: 2rem;
+}
+
+.app.cc {
+    background-color: var(--sky300);
+}
+
+.ccIcon > svg {
+    width: 100%;
+    height: 100%;
+}
+
+.ccIcon {
+    position: absolute;
+    top: 0.15rem;
+    left: 0.15rem;
+    width: 0.65rem;
+    height: 0.65rem;
+    display: flex;
 }

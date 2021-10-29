@@ -199,8 +199,7 @@ def swapScheduleHandler() -> ResponseType:
     with SqliteDB() as cursor:
         try:
             data = request.get_json()['data']
-            companies, atts, interviewTimes, app1, att1, app2, att2 = parseJsonSwapSchedule(data)
-            return {"data": trySwap(companies, atts, interviewTimes, app1, att1, app2, att2)}, 200
+            return {"data": trySwap(*parseJsonSwapSchedule(data))}, 200
         except Exception as e:
             return handleException(cursor, e)
 
