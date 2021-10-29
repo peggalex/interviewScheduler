@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from serverUtilities import Company, CompanyPreference, Attendee, TimeInterval, Appointment, ValidationException
+from serverUtilities import CoffeeChat, Company, CompanyPreference, Attendee, TimeInterval, Appointment, ValidationException
 
 def parseJsonSchedule(data: dict) -> tuple[
         list[Company], 
@@ -12,11 +12,11 @@ def parseJsonSchedule(data: dict) -> tuple[
 
     interviewTimes = [TimeInterval.fromStr(t['start'], t['end']) for t in data['interviewTimes']]
 
-    companyNameToCompany = {}
+    companyNameToCompany: dict[str, Company] = {}
     for companyName in companiesJson.keys():
         companyNameToCompany[companyName] = Company(companyName)
 
-    attendeeIdToAttendee = {}
+    attendeeIdToAttendee: dict[int, Attendee] = {}
     for attIdStr, attendeeJson in attendeesJson.items():
         attId = int(attIdStr)
         prefs = [
@@ -28,15 +28,38 @@ def parseJsonSchedule(data: dict) -> tuple[
 
     for companyName, company in companyNameToCompany.items():
         for roomName, roomJson in companiesJson[companyName].items():
-            times = [TimeInterval.fromStr(app['start'], app['end']) for app in roomJson['apps']]
+            times = [
+                TimeInterval.fromStr(app['start'], app['end']) 
+                for app in roomJson['apps'] 
+                if app['isCoffeeChat'] == False
+            ]
             candidates = [attendeeIdToAttendee[attId] for attId in roomJson['candidates']]
-            company.addCompanyRoom(roomName, times, candidates)
 
-            assert(len(roomJson['apps']) == len(company.rooms[-1].appointments))
-            for i in range(len(roomJson['apps'])):
-                att = roomJson['apps'][i]['att']
+            room = company.addCompanyRoom(roomName, times, candidates)
+
+            for appJson, app in zip(
+                [a for a in roomJson['apps'] if a['isCoffeeChat'] == False], 
+                room.appointments
+            ):
+                att = appJson['att']
                 if att is not None:
-                    company.rooms[-1].appointments[i].attendee = attendeeIdToAttendee[att]
+                    app.attendee = attendeeIdToAttendee[att]
+
+            coffeeChatJson = roomJson.get('coffeeChat', None)
+            if coffeeChatJson is not None:
+                room.setCoffeeChat(
+                    coffeeChatJson['capacity'],
+                    TimeInterval.fromStr(coffeeChatJson['start'], coffeeChatJson['end']),
+                    [attendeeIdToAttendee[attId] for attId in coffeeChatJson['candidates']]
+                )
+                for appJson, app in zip(
+                    [a for a in roomJson['apps'] if a['isCoffeeChat'] == True], 
+                    [a for a in room.appointments if a.isCoffeeChat == True]
+                ):
+                    att = appJson['att']
+                    if att is not None:
+                        app.attendee = attendeeIdToAttendee[att]
+
 
     return (
         list(companyNameToCompany.values()),

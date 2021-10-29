@@ -226,3 +226,7 @@ tr.fadeRoom {
     height: 0.65rem;
     display: flex;
 }
+
+.notSelected .app.cc {
+    background-color: var(--pink400);
+}

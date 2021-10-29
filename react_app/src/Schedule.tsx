@@ -56,10 +56,15 @@ class Appointment {
         this.iApp = iApp;
     }
 }
+interface ICoffeeChat extends IInterval {
+    candidates: number[];
+    capcaity: number;
+}
 
 interface IRoom {
     apps: IAppointment[];
     candidates: number[];
+    coffeeChat?: ICoffeeChat;
 }
 
 interface ISchedule {
@@ -106,7 +111,8 @@ function dateToStr(date: Date){
 
 var ATT_TO_APPS: {[att: number]: Appointment[]} = {};
 var ROOM_TO_COMPANY: {[room: string]: string} = {};
-var ATT_TO_ROOMS: {[att: number]: Set<string>} = {};
+var ATT_TO_INTERVIEWROOMS: {[att: number]: Set<string>} = {};
+var ATT_TO_COFFEECHATROOMS: {[att: number]: Set<string>} = {};
 var ROOM_TO_COFFEECHATAPPS: {[room: string]: Appointment[]} = {};
 var ATT_TO_BREAKS = {};
 
@@ -128,8 +134,10 @@ function ScheduleCompany(
 ){
     let headings = getHeadings(schedule);
     ATT_TO_APPS = {}; // empty out prev
-    ATT_TO_ROOMS = {};
+    ATT_TO_INTERVIEWROOMS = {};
+    ATT_TO_COFFEECHATROOMS = {};
     ROOM_TO_COMPANY = {};
+    ROOM_TO_COFFEECHATAPPS = {};
 
     //const attKey = 'att', timeKey = 'time', roomKey = 'room', appKey = 'app';
 
@@ -246,9 +254,29 @@ function ScheduleCompany(
                         let timeToApp: {[time: number]: Appointment[]} = {};
                         let addedInCoffeeChat = false;
                         let i = 0;
-    
+
+                        ROOM_TO_COMPANY[roomName] = companyName;
+
+                        let candidatesNotSelected = new Set(room.candidates);
+                        for (let attId of room.candidates){
+                            ATT_TO_INTERVIEWROOMS[attId] = ATT_TO_INTERVIEWROOMS[attId] || new Set();
+                            ATT_TO_INTERVIEWROOMS[attId].add(roomName);
+                        }
+                        if (room.coffeeChat){
+                            for (let attId of room.coffeeChat.candidates){
+                                ATT_TO_COFFEECHATROOMS[attId] = ATT_TO_COFFEECHATROOMS[attId] || new Set();
+                                ATT_TO_COFFEECHATROOMS[attId].add(roomName);
+                            } 
+                        }
+                        /* as we iterate over apps, remove attendees who are selected */
                         for (let iApp of room.apps) {
                             let app = new Appointment(iApp.att, companyName, roomName, iApp);
+                            if (app.att != null){
+                                if (!app.isCoffeeChat){
+                                    candidatesNotSelected.delete(app.att);
+                                }
+                                ATT_TO_APPS[app.att] = [...(ATT_TO_APPS[app.att] || []), app];
+                            }
                             if (app.isCoffeeChat){
                                 ROOM_TO_COFFEECHATAPPS[roomName] = [...(ROOM_TO_COFFEECHATAPPS[roomName] || []), app];
                                 if (addedInCoffeeChat){
@@ -264,22 +292,10 @@ function ScheduleCompany(
                             timeToApp[+headings[i]] = timeToApp[+headings[i]] || [];
                             timeToApp[+headings[i]].push(app);
                         }
-                        let candidatesNotSelected = new Set(room.candidates);
-                        for (let attId of room.candidates){
-                            console.log('att:', attId, 'company:', companyName);
-                            ATT_TO_ROOMS[attId] = ATT_TO_ROOMS[attId] || new Set();
-                            ATT_TO_ROOMS[attId].add(roomName);
-                            ROOM_TO_COMPANY[roomName] = companyName;
-                        }
-                        /* as we iterate over apps, remove attendees who are selected */
                         return <tr data-room={roomName}>
                             <td>{roomName}</td>
                             {headings.map(heading => <td key={+heading}>{
                                 (timeToApp[+heading] || []).map(app => {
-                                    if (app.att != null){
-                                        candidatesNotSelected.delete(app.att);
-                                        ATT_TO_APPS[app.att] = [...(ATT_TO_APPS[app.att] || []), app];
-                                    }
                                     let interval = app.interval;
                                     let lengthPercent = (interval.lengthMins / 60) * 100;
                                     let startPercent = (interval.start.getMinutes() / 60) * 100;
@@ -296,7 +312,7 @@ function ScheduleCompany(
                                             data-att={app.isCoffeeChat ? null : app.att}
                                             data-time={dateToTimeStr(interval.start)} 
                                             data-room={roomName} 
-                                            data-app={JSON.stringify(app as Object)}
+                                            data-app={app.isCoffeeChat ? null : JSON.stringify(app.iApp as Object)}
                                             className={`app col centerAll ${app.att ? '' : 'empty'} ${app.isCoffeeChat ? 'cc' : ''}`} 
                                             draggable={app.att != null && !app.isCoffeeChat}
                                             onDragStart={app.isCoffeeChat ? ()=>{} : dragApp} 
@@ -373,11 +389,24 @@ function ScheduleAttendees(
                     let timeToApp: {[time: number]: Appointment[]} = {};
                     let timeToBreak: {[time: number]: Interval[]} = {};
                     let attId = parseInt(attIdStr); // ts considers keys as string
-                    if ((ATT_TO_ROOMS[attId] || new Set()).size == 0) return;
-                    let i = 0;
+                    if ((
+                        (ATT_TO_INTERVIEWROOMS[attId] || new Set()).size + 
+                        (ATT_TO_COFFEECHATROOMS[attId] || new Set()).size) == 0
+                    ){
+                        return;
+                    }
+
                     let apps = ATT_TO_APPS[attId] || [];
-                    apps.sort((a,b) => +Interval.fromStr(a.iApp).start - +Interval.fromStr(b.iApp).start)
+                    apps.sort((a,b) => +Interval.fromStr(a.iApp).start - +Interval.fromStr(b.iApp).start);
+
+                    let interviewRoomsNotSelected = new Set(ATT_TO_INTERVIEWROOMS[attId]);
+                    let coffeeChatRoomsNotSelected = new Set(ATT_TO_COFFEECHATROOMS[attId]);
+                    let i = 0;
                     for (let app of apps) {
+                        if (app.att != null && !app.isCoffeeChat){
+                            let roomsNotSelected = app.isCoffeeChat ? coffeeChatRoomsNotSelected : interviewRoomsNotSelected;
+                            roomsNotSelected.delete(app.roomName);
+                        }
                         let interval = Interval.fromStr(app.iApp);
 
                         for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
@@ -394,7 +423,6 @@ function ScheduleAttendees(
                         timeToBreak[+headings[i]] = timeToBreak[+headings[i]] || [];
                         timeToBreak[+headings[i]].push(interval);
                     }
-                    let roomsNotSelected = new Set(ATT_TO_ROOMS[attId]); 
                     /* as we iterate over apps, remove companies who are selected */
                     return <tr>
                         <td>{attId}</td>
@@ -420,9 +448,6 @@ function ScheduleAttendees(
                             })
                         }{
                             (timeToApp[+heading] || []).map(app => {
-                                if (app.att != null){
-                                    roomsNotSelected.delete(app.roomName);
-                                }
                                 let interval = Interval.fromStr(app.iApp);
                                 let lengthPercent = (interval.lengthMins / 60) * 100;
                                 let startPercent = (interval.start.getMinutes() / 60) * 100;
@@ -445,14 +470,18 @@ function ScheduleAttendees(
                                 </div>
                             })
                         }</td>)}
-                        <td><div className="row">{Array.from(roomsNotSelected).map(roomName => {
-                            return <div key={attId} className="appContainer notSelected centerAll">
-                                <div className={`app col centerAll`}>
-                                    <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
-                                    <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
+                        <td><div className="row">{[false, true].map(isCoffeeChat => {
+                            let roomsNotSelected = isCoffeeChat ? coffeeChatRoomsNotSelected : interviewRoomsNotSelected;
+                            return Array.from(roomsNotSelected).map(roomName => (
+                                <div key={attId} className="appContainer notSelected centerAll">
+                                    <div className={`app col centerAll ${isCoffeeChat ? 'cc' : ''}`}>
+                                        {isCoffeeChat ? <div className='ccIcon'>{Icons.Coffee}</div> : null}
+                                        <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
+                                        <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        })}</div></td>
+                            )
+                        )})}</div></td>
                     </tr>
                 })}
             </tbody>
