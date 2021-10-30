@@ -1,4 +1,4 @@
-#scheduleCompany, #scheduleAttendee {
+#scheduleCompany, #scheduleAttendee, #scheduleCoffeeChat {
     max-height: 90vh;
     overflow-y: scroll;
     font-size: 0.8rem;
@@ -38,7 +38,7 @@
     /* must be min-width or wont extend beyond parent container */
 }
 
-#scheduleCompany .app * {
+#scheduleCompany .app *, #scheduleCoffeeChat .app * {
     pointer-events: none;
 }
 
@@ -46,9 +46,14 @@ tr.fadeRoom {
     opacity: 0.25;
 }
 
-.removeApp {
+.removeApp:not(.cc) {
     background-color: var(--orange300) !important;
     border: 0.15rem dashed var(--orange400);
+}
+
+.removeApp.cc {
+    background-color: var(--pink300) !important;
+    border: 0.15rem dashed var(--pink400);
 }
 
 #schedules th {
@@ -104,13 +109,13 @@ tr.fadeRoom {
 .notSelected .app {
     background-color: var(--orange400);
 }
-.appContainer.notSelected {
+.appContainer.notSelected, #scheduleCoffeeChat .appContainer {
     position: inherit;
     width: 5.5rem;
 }
 .app.empty {
     border: dashed thin var(--grey400);
-    background-color: var(--grey200);
+    background-color: var(--grey200) !important;
     color: var(--grey400);
 }
 
@@ -177,6 +182,10 @@ tr.fadeRoom {
     font-size: 1rem;
 }
 
+#generateButt:hover > svg{
+    animation: ease-out 0.5s spinHalf;
+}
+
 #generateButt > p {
     margin: 0;
     margin-top: -0.2rem;
@@ -230,3 +239,22 @@ tr.fadeRoom {
 .notSelected .app.cc {
     background-color: var(--pink400);
 }
+
+tr:nth-child(odd) {
+    background-color: var(--slate50);
+}
+
+td.ccRowLabel > * {
+    margin: 0;
+}
+
+p.ccRoomDate {
+    font-size: 0.6rem;
+    padding-top: 0.25rem;
+    color: var(--grey500);
+}
+
+@keyframes spinHalf {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(180deg); }
+  }

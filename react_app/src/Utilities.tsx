@@ -246,7 +246,7 @@ const attendeePrefsTable: Table = new Table(
     {
         name: 'Preference',
         type: ColumnType.INT,
-        desc: 'the larger the better'
+        desc: 'must be positive, the smaller the better'
     }],
     true,
     [attendeeTable]
@@ -259,4 +259,36 @@ const roomCandidatesTable: Table = new Table(
     [roomNameCol, attendeeCol],
     true,
     [roomsTable, attendeeTable]
+);
+
+const coffeeChatsTable: Table = new Table(
+    'Coffee Chats',
+    'CoffeeChats',
+    'This is a list of room coffee chats.',
+    [roomNameCol, 
+    {
+        name: "Capacity",
+        type: ColumnType.INT,
+        desc: "must be positive"
+    },
+    {
+        name: 'Start Time',
+        type: ColumnType.DATETIME
+    },
+    {
+        name: 'End Time',
+        type: ColumnType.DATETIME,
+        desc: 'must be greater than start time'
+    }],
+    false,
+    [interviewTimesTable, roomsTable]
+);
+
+const coffeeChatsCandidatesTable: Table = new Table(
+    'Coffee Chat Candidates',
+    'CoffeeChatCandidates',
+    'This is a list of room coffee chats candidates.',
+    [roomNameCol, attendeeCol],
+    false,
+    [coffeeChatsTable]
 );

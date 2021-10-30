@@ -61,8 +61,11 @@ def run(companies: list[Company], attendees: list[Attendee], interviewTimes: lis
                     for c in companies:
                         if c.wantsAttendee(newAtt, isCoffeeChat):
                             for app in c.getAppointments():
-                                if app.isEmpty() and app.canSwap(newAtt, appIntersects, None) and app.isCoffeeChat == isCoffeeChat:
-                                    validApps.append(app)
+                                if app.isEmpty() and app.isCoffeeChat == isCoffeeChat:
+                                    if app.canSwap(newAtt, appIntersects, None):
+                                        validApps.append(app)
+                                    elif isCoffeeChat:
+                                        pass
                     if validApps:
                         app = max(validApps, key=lambda app: (
                                 len(emptyAppsCache[app.timeHash]), 

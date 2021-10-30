@@ -1,4 +1,4 @@
-from Schema import ATTENDEEBREAKS_TABLE, ATTENDEEPREFS_TABLE, ATTENDEES_TABLE, COMPANY_TABLE, INTERVIEWTIME_TABLE, ROOM_TABLE, ROOMBREAKS_TABLE, ROOMCANDIDATES_TABLE, GetInterviewTimes
+from Schema import ATTENDEEBREAKS_TABLE, ATTENDEEPREFS_TABLE, ATTENDEES_TABLE, COFFEECHAT_TABLE, COFFEECHATCANDIDATES_TABLE, COMPANY_TABLE, INTERVIEWTIME_TABLE, ROOM_TABLE, ROOMBREAKS_TABLE, ROOMCANDIDATES_TABLE, GetInterviewTimes
 import traceback
 import logging as notFlaskLogging
 from datetime import datetime
@@ -13,6 +13,8 @@ from SqliteLib import Column, SqliteDB, Table
 from sqlite3 import OperationalError as sqlite3Error
 
 from parseTable import (
+    readCoffeeChat,
+    readCoffeeChatCandidates,
     readInterviewTimes, 
     readCompanyNames,
     readRoomNames,
@@ -95,6 +97,7 @@ def getTableReponse(table: Table) -> ResponseType:
         except Exception as e:
             return handleException(cursor, e)
 
+
 # interview times
 @app.route('/getInterviewTimes', methods=['GET'])
 def getInterviewTimesHandler() -> ResponseType:
@@ -123,6 +126,7 @@ def getRoomNamesHandler() -> ResponseType:
 @app.route('/setRoomNames', methods=['POST'])
 def setRoomNamesHandler() -> ResponseType:
     return setTable(request, readRoomNames, getRoomNamesHandler)
+
 
 # room breaks
 @app.route('/getRoomBreaks', methods=['GET'])
@@ -172,6 +176,27 @@ def getRoomCandidatesHandler() -> ResponseType:
 @app.route('/setRoomCandidates', methods=['POST'])
 def setRoomCandidatesHandler() -> ResponseType:
     return setTable(request, readRoomCandidates, getRoomCandidatesHandler)
+
+
+# coffee chats
+@app.route('/getCoffeeChats', methods=['GET'])
+def getCoffeeChatsHandler() -> ResponseType:
+    return getTableReponse(COFFEECHAT_TABLE)
+
+@app.route('/setCoffeeChats', methods=['POST'])
+def setCoffeeChatsHandler() -> ResponseType:
+    return setTable(request, readCoffeeChat, getCoffeeChatsHandler)
+
+
+# coffee chat candidates
+@app.route('/getCoffeeChatCandidates', methods=['GET'])
+def getCoffeeChatCandidatesHandler() -> ResponseType:
+    return getTableReponse(COFFEECHATCANDIDATES_TABLE)
+
+@app.route('/setCoffeeChatCandidates', methods=['POST'])
+def setCoffeeChatCandidatesHandler() -> ResponseType:
+    return setTable(request, readCoffeeChatCandidates, getCoffeeChatCandidatesHandler)
+
 
 
 @app.route('/generateSchedule', methods=['GET'])

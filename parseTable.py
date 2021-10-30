@@ -122,6 +122,7 @@ def readRoomBreaks(doc: str, cursor: SqliteDB):
 
 def readCoffeeChat(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(COFFEECHAT_TABLE)
+    cursor.EmptyTable(COFFEECHATCANDIDATES_TABLE)
 
     interviewTimes = GetInterviewTimes(cursor)
     roomIntervals = GetRoomIntervals(cursor)
@@ -261,8 +262,8 @@ def readAttendeePrefs(doc: str, cursor: SqliteDB):
             f"duplicate company preference for attendee '{attendeeID}' for company '{companyName}'"
         )
         ValidationException.throwIfFalse(
-            str.isdigit(pref) and 0 <= int(pref),
-            f"invalid preference ({pref}), must be non-negative integer"
+            str.isdigit(pref) and 1 < int(pref),
+            f"invalid preference ({pref}), must be a positive integer"
         )
         lowestRank = max(lowestRank, int(pref))
         attendeePreferences[attendeeID][companyName] = int(pref)

@@ -111,12 +111,15 @@ class AppointmentIntersects:
         appsAtTime = self.appsAtTime[app.timeHash]
         return appsAtTime - {app}
 
-    def hasOtherAppsAtTime(self, att: Attendee, app: Appointment) -> bool:
+    def getOtherAppAtTime(self, att: Attendee, app: Appointment) -> Optional[Appointment]:
         if att:
             for app2 in self.getOtherAppsAtTime(app):
                 if app2 != app and app2.isAttendee(att):
-                    return True
-        return False
+                    return app2
+        return None
+
+    def hasOtherAppsAtTime(self, att: Attendee, app: Appointment) -> bool:
+        return self.getOtherAppAtTime(att, app) is not None
 
 
 class CoffeeChat(TimeInterval):
@@ -196,7 +199,7 @@ class Appointment(TimeInterval):
         super().__init__(time, length)
         self.companyRoom = companyRoom
         self.company: Company = self.companyRoom.company
-        self.attendee = None
+        self.attendee: Optional[Attendee] = None
         self.isCoffeeChat = isCoffeeChat
 
     def __repr__(self):

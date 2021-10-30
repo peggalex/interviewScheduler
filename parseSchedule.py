@@ -92,7 +92,13 @@ def parseJsonSwapSchedule(data: dict) -> tuple[
                     for app in room.appointments:
                         if app.time == datetime.fromisoformat(appJson['start']):
                             # datetime equality does not need to be the same object
-                            return app
+                            if app.attendee is None and appJson['att'] is None:
+                                return app
+                            elif app.attendee is None or appJson['att'] is None:
+                                continue
+                            elif app.attendee.uid == appJson['att']:
+                                return app
+                                
         raise ValidationException('what the hey?')
 
     getAttId = lambda attId: attendeeIdToAttendee[attId] if attId is not None else None

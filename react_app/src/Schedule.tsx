@@ -1,5 +1,6 @@
 import { strictEqual } from 'assert';
 import React from 'react';
+import internal from 'stream';
 import Icons from './Icons';
 import './styles/Schedule.css';
 import { CallAPI, CallAPIJson, RestfulType } from './Utilities';
@@ -130,18 +131,17 @@ var DRAGGING_APP: {
 
 function ScheduleCompany(
     {schedule, swapFunc}: 
-    {schedule: ISchedule, swapFunc: (app1?: Object, att1?: number, app2?: Object, att2?: number) => void}
+    {schedule: ISchedule, swapFunc: (isCoffeeChat: boolean, app1?: Object, att1?: number, app2?: Object, att2?: number) => void}
 ){
     let headings = getHeadings(schedule);
     ATT_TO_APPS = {}; // empty out prev
     ATT_TO_INTERVIEWROOMS = {};
     ATT_TO_COFFEECHATROOMS = {};
+
     ROOM_TO_COMPANY = {};
     ROOM_TO_COFFEECHATAPPS = {};
 
-    //const attKey = 'att', timeKey = 'time', roomKey = 'room', appKey = 'app';
-
-    function dragApp(ev: React.DragEvent<HTMLDivElement>) {
+    function dragInterviewApp(ev: React.DragEvent<HTMLDivElement>) {
         console.log('draggin');
 
         let el = ev.target as any;
@@ -149,11 +149,6 @@ function ScheduleCompany(
         let timeStr = el.dataset.time;
         let roomStr = el.dataset.room;
         let appStr = el.dataset.app;
-
-        /*ev.dataTransfer!.setData(attKey, attStr ?? '');
-        ev.dataTransfer!.setData(timeKey, timeStr ?? '');
-        ev.dataTransfer!.setData(roomKey, roomStr ?? '');        
-        ev.dataTransfer!.setData(appKey, appStr ?? '');*/
 
         DRAGGING_APP.att = attStr ?? '';
         DRAGGING_APP.time = timeStr ?? '';
@@ -167,7 +162,7 @@ function ScheduleCompany(
         });
     }
 
-    function dropApp(ev: React.DragEvent<HTMLDivElement>) {
+    function dropInterviewApp(ev: React.DragEvent<HTMLDivElement>) {
         console.log('droppin');
         ev.preventDefault();
 
@@ -194,20 +189,17 @@ function ScheduleCompany(
 
         let getAppStr = (att?: number, time?: string|null) => `${att ? `Attendee ${att}` : 'Appointment'}${time ? ` @ ${time}` : ''}`;
 
-        if (!att1 && !app1){
-            
-        }
         if (window.confirm(
                 (!att1 && !app1) ? 
                 `Are you sure you want to move ${getAppStr(att2, otherTimeStr)} out of the schedule (to the extra column) for ${room}?` : 
                 `Are you sure you want to swap ${getAppStr(att2, otherTimeStr)} with ${getAppStr(att1, timeStr)} for ${room}?`
             )){
             console.log('hi');
-            swapFunc(app1, att1, app2, att2);
+            swapFunc(false, app1, att1, app2, att2);
         }
     }
 
-    function allowDrop(ev: any) {
+    function allowInterviewDrop(ev: any) {
 
         let el = ev.target;
         let attStr = el.dataset.att;
@@ -232,7 +224,7 @@ function ScheduleCompany(
         }
     }
 
-    function dragAppEnd(ev: any){
+    function dragInterviewAppEnd(ev: any){
         document.querySelectorAll("#scheduleCompany tbody tr.fadeRoom").forEach(row => {
             row.classList.remove('fadeRoom');
         });
@@ -315,10 +307,10 @@ function ScheduleCompany(
                                             data-app={app.isCoffeeChat ? null : JSON.stringify(app.iApp as Object)}
                                             className={`app col centerAll ${app.att ? '' : 'empty'} ${app.isCoffeeChat ? 'cc' : ''}`} 
                                             draggable={app.att != null && !app.isCoffeeChat}
-                                            onDragStart={app.isCoffeeChat ? ()=>{} : dragApp} 
-                                            onDragEnd={app.isCoffeeChat ? ()=>{} : dragAppEnd}
-                                            onDrop={app.isCoffeeChat ? ()=>{} : dropApp} 
-                                            onDragOver={app.isCoffeeChat ? ()=>{} : allowDrop}
+                                            onDragStart={app.isCoffeeChat ? ()=>{} : dragInterviewApp} 
+                                            onDragEnd={app.isCoffeeChat ? ()=>{} : dragInterviewAppEnd}
+                                            onDrop={app.isCoffeeChat ? ()=>{} : dropInterviewApp} 
+                                            onDragOver={app.isCoffeeChat ? ()=>{} : allowInterviewDrop}
                                         >
                                             {app.isCoffeeChat ? <div className='ccIcon'>{Icons.Coffee}</div> : null}
                                             <div className='appLength'>{interval.lengthMins}m</div>
@@ -329,13 +321,13 @@ function ScheduleCompany(
                                     </div>
                                 })
                             }</td>)}
-                            <td><div className="row">
+                            <td><div className="row centerCross">
                                 <div className="appContainer notSelected centerAll">
                                     <div 
                                         className={`app removeApp col centerAll`} 
                                         data-room={roomName} 
-                                        onDrop={dropApp} 
-                                        onDragOver={allowDrop}
+                                        onDrop={dropInterviewApp} 
+                                        onDragOver={allowInterviewDrop}
                                     >
                                         <span className='appAtt'>remove</span>
                                     </div>
@@ -348,10 +340,10 @@ function ScheduleCompany(
                                             draggable 
                                             data-att={attId} 
                                             data-room={roomName} 
-                                            onDragStart={dragApp} 
-                                            onDragEnd={dragAppEnd}
-                                            onDrop={dropApp} 
-                                            onDragOver={allowDrop}
+                                            onDragStart={dragInterviewApp} 
+                                            onDragEnd={dragInterviewAppEnd}
+                                            onDrop={dropInterviewApp} 
+                                            onDragOver={allowInterviewDrop}
                                         >   
                                             <span className='appPref'>pref: {att.prefs[companyName]}</span>
                                             <span className='appAtt'>{attId}</span>
@@ -367,6 +359,183 @@ function ScheduleCompany(
     </div>
 }
 
+function ScheduleCoffeeChat(
+    {schedule, swapFunc}: 
+    {schedule: ISchedule, swapFunc: (isCoffeeChat: boolean, app1?: Object, att1?: number, app2?: Object, att2?: number) => void}
+){
+    function dragCCApp(ev: React.DragEvent<HTMLDivElement>) {
+        console.log('draggin');
+
+        let el = ev.target as any;
+        let attStr = el.dataset.att;
+        let timeStr = el.dataset.time;
+        let roomStr = el.dataset.room;
+        let appStr = el.dataset.app;
+
+        DRAGGING_APP.att = attStr ?? '';
+        DRAGGING_APP.time = timeStr ?? '';
+        DRAGGING_APP.room = roomStr ?? '';
+        DRAGGING_APP.app = appStr ?? '';
+
+        document.querySelectorAll(
+            `#scheduleCoffeeChat tbody tr:not([data-room='${roomStr}'])`
+        ).forEach(row => {
+            row.classList.add('fadeRoom');
+        });
+    }
+
+    function dropCCApp(ev: React.DragEvent<HTMLDivElement>) {
+        console.log('droppin');
+        ev.preventDefault();
+
+        let el = ev.currentTarget;
+        let attStr = el.dataset.att;
+        let timeStr = el.dataset.time;
+        let roomStr = el.dataset.room;
+        let appStr = el.dataset.app;
+
+        let otherAttStr = DRAGGING_APP.att;
+        let otherTimeStr = DRAGGING_APP.time;
+        let otherRoomStr = DRAGGING_APP.room;
+        let otherAppStr = DRAGGING_APP.app;
+
+        let room = roomStr || otherRoomStr;
+
+        let [att1, att2] = [attStr, otherAttStr].map(s => s ? parseInt(s) : undefined);
+        let [app1, app2] = [appStr, otherAppStr].map(s => s ? JSON.parse(s) : undefined);
+
+        let getAppStr = (att?: number, time?: string|null) => `${att ? `Attendee ${att}` : 'Appointment'}${time ? ` @ ${time}` : ''}`;
+
+        if (window.confirm(
+                (!att1 && !app1) ? 
+                `Are you sure you want to move ${getAppStr(att2, otherTimeStr)} out of the schedule (to the extra column) for ${room}?` : 
+                `Are you sure you want to swap ${getAppStr(att2, otherTimeStr)} with ${getAppStr(att1, timeStr)} for ${room}?`
+            )){
+            console.log('hi');
+            swapFunc(true, app1, att1, app2, att2);
+        }
+    }
+
+    function allowCCDrop(ev: any) {
+
+        let el = ev.target;
+        let attStr = el.dataset.att;
+        let timeStr = el.dataset.time;
+        let roomStr = el.dataset.room;
+        let appStr = el.dataset.app;
+
+        let otherAttStr = DRAGGING_APP.att;
+        let otherTimeStr = DRAGGING_APP.time;
+        let otherRoomStr = DRAGGING_APP.room;
+        let otherAppStr = DRAGGING_APP.app;
+
+        if (!(
+            (!timeStr && !otherTimeStr) ||
+            (timeStr == otherTimeStr) ||
+            (roomStr != otherRoomStr) ||
+            (!attStr && !otherAttStr) ||
+            (!appStr && !otherAppStr)
+        )){
+            // if these conditions are false, allow drag by preventDefault
+            ev.preventDefault();
+        }
+    }
+
+    function dragCCAppEnd(ev: any){
+        document.querySelectorAll("#scheduleCoffeeChat tbody tr.fadeRoom").forEach(row => {
+            row.classList.remove('fadeRoom');
+        });
+    }
+
+    return <div id='scheduleCoffeeChat'>
+        <table>
+            <thead><tr>
+                <th id='roomNameCol'>Room Name</th>
+                <th>Appointments</th>
+                <th id='extra'>Extra</th>
+            </tr></thead>
+            <tbody>
+                {Object.entries(schedule.companies).map(([companyName, rooms]) => {
+                    return Object.entries(rooms).map(([roomName, room]) => {
+                        let cc = room.coffeeChat;
+                        if (cc == null){
+                            return null;
+                        }        
+                        let interval = Interval.fromStr(cc);    
+                        
+                        let candidatesNotSelected = new Set(cc.candidates);
+                        return <tr data-room={roomName}>
+                            <td className="ccRowLabel">
+                                <p className="ccRoomName">{roomName}</p>
+                                <p className="ccRoomDate">({dateToStr(interval.start)}, {dateToStr(interval.end)})</p>
+                            </td>
+                            <td><div className="row centerCross">{room.apps.map(app => {
+                                if (!app.isCoffeeChat){ 
+                                    return null; 
+                                }
+                                let att = app.att == null ? null : schedule.attendees[app.att!];
+                                if (att != null){
+                                    candidatesNotSelected.delete(app.att!);
+                                }
+                                return <div className="appContainer centerAll">
+                                    <div
+                                        data-att={app.att}
+                                        data-time={dateToTimeStr(interval.start)} 
+                                        data-room={roomName} 
+                                        data-app={JSON.stringify(app as Object)}
+                                        className={`app col centerAll ${app.att ? '' : 'empty'} cc`} 
+                                        draggable={app.att != null}
+                                        onDragStart={dragCCApp} 
+                                        onDragEnd={dragCCAppEnd}
+                                        onDrop={dropCCApp} 
+                                        onDragOver={allowCCDrop}
+                                    >
+                                        <div className='ccIcon'>{Icons.Coffee}</div>
+                                        <div className='appLength'>{interval.lengthMins}m</div>
+                                        <span className='appAtt'>{app.att || '?'}</span>
+                                        <span className='appTime'>{dateToTimeStr(interval.start)}</span>
+                                        <span className='appPref'>{app.att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
+                                    </div>
+                                </div>
+                            })}</div></td>
+                            <td><div className="row centerCross">
+                                <div className="appContainer notSelected centerAll">
+                                    <div 
+                                        className={`app removeApp col centerAll cc`} 
+                                        data-room={roomName} 
+                                        onDrop={dropCCApp} 
+                                        onDragOver={allowCCDrop}
+                                    >
+                                        <span className='appAtt'>remove</span>
+                                    </div>
+                                </div>
+                                {Array.from(candidatesNotSelected).map(attId => {
+                                    let att = schedule.attendees[attId];
+                                    return <div key={attId} className="appContainer notSelected centerAll">
+                                        <div 
+                                            className={`app col centerAll cc`} 
+                                            draggable 
+                                            data-att={attId} 
+                                            data-room={roomName} 
+                                            onDragStart={dragCCApp} 
+                                            onDragEnd={dragCCAppEnd}
+                                            onDrop={dropCCApp} 
+                                            onDragOver={allowCCDrop}
+                                        >   
+                                            <div className='ccIcon'>{Icons.Coffee}</div>
+                                            <span className='appPref'>pref: {att.prefs[companyName]}</span>
+                                            <span className='appAtt'>{attId}</span>
+                                        </div>
+                                    </div>
+                                })}
+                            </div></td>
+                        </tr>
+                    })
+                })}
+                </tbody>
+        </table>
+    </div>
+}
 
 function ScheduleAttendees(
         {schedule,}: 
@@ -403,7 +572,7 @@ function ScheduleAttendees(
                     let coffeeChatRoomsNotSelected = new Set(ATT_TO_COFFEECHATROOMS[attId]);
                     let i = 0;
                     for (let app of apps) {
-                        if (app.att != null && !app.isCoffeeChat){
+                        if (app.att != null){
                             let roomsNotSelected = app.isCoffeeChat ? coffeeChatRoomsNotSelected : interviewRoomsNotSelected;
                             roomsNotSelected.delete(app.roomName);
                         }
@@ -507,7 +676,7 @@ function SchedulePage(){
 		}).finally(()=>setIsLoading(false));
 	}
 
-	let swap = (app1?: Object, att1?: number, app2?: Object, att2?: number) => {
+	let swap = (isCoffeeChat: boolean, app1?: Object, att1?: number, app2?: Object, att2?: number) => {
         setIsLoading(true);
 		CallAPIJson('/swapSchedule', RestfulType.POST, {
             'data': {
@@ -515,7 +684,8 @@ function SchedulePage(){
                 'app1': app1 ?? null,
                 'att1': att1 ?? null,
                 'app2': app2 ?? null,
-                'att2': att2 ?? null
+                'att2': att2 ?? null,
+                'isCoffeeChat': isCoffeeChat
             }
         }).then(({data}: {data: ISchedule}) => {
             setScheduleObj(data);
@@ -553,6 +723,7 @@ function SchedulePage(){
                 </div>
                 <div id='schedules'>
                     <ScheduleCompany schedule={scheduleObj} swapFunc={swap}/>
+                    <ScheduleCoffeeChat schedule={scheduleObj} swapFunc={swap}/>
                     <ScheduleAttendees schedule={scheduleObj}/>
                 </div>
                 <button onClick={writeSchedule}>write schedule</button>
