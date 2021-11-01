@@ -31,6 +31,8 @@ def readConventionTimes(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(CONVENTIONTIME_TABLE)
     cursor.EmptyTable(ROOMINTERVIEW_TABLE)
     cursor.EmptyTable(ATTENDEEBREAKS_TABLE)
+    cursor.EmptyTable(COFFEECHAT_TABLE)
+
     conventionTimes = []
 
     for start,end in getCols(doc, 2, True):
