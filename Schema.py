@@ -2,6 +2,7 @@ from SqliteLib import *
 from typing import DefaultDict
 from datetime import datetime
 from serverUtilities import CoffeeChat, TimeInterval
+from os import remove
 
 TABLES: list[DatedTable] = []
 def createTable(name: str) -> DatedTable:
@@ -11,115 +12,126 @@ def createTable(name: str) -> DatedTable:
     TABLES.append(table)
     return table
 
-INTERVIEWTIME_TABLE = createTable("interviewTime")
-INTERVIEWTIME_START_COL = INTERVIEWTIME_TABLE.CreateColumn("start", DATETIME_TYPE, isPrimary=True)
-INTERVIEWTIME_END_COL = INTERVIEWTIME_TABLE.CreateColumn("end", DATETIME_TYPE)
+CONVENTIONTIME_TABLE = createTable("interviewTime")
+CONVENTIONTIME_START_COL = CONVENTIONTIME_TABLE.CreateColumn("start", DATETIME_TYPE, isPrimary=True)
+CONVENTIONTIME_END_COL = CONVENTIONTIME_TABLE.CreateColumn("end", DATETIME_TYPE)
 
-def AddInterviewTime(cursor: SqliteDB, timeInt: TimeInterval):
+def AddConventionTime(cursor: SqliteDB, timeInt: TimeInterval):
     cursor.InsertIntoTable(
-        INTERVIEWTIME_TABLE, {
-            INTERVIEWTIME_START_COL: [timeInt.time], 
-            INTERVIEWTIME_END_COL: [timeInt.end]
+        CONVENTIONTIME_TABLE, {
+            CONVENTIONTIME_START_COL: [timeInt.time], 
+            CONVENTIONTIME_END_COL: [timeInt.end]
         }
     )
 
-def GetInterviewTimes(cursor: SqliteDB) -> list[TimeInterval]:
-    interviewTimesObj = cursor.FetchAll(cursor.Q(
-        [INTERVIEWTIME_START_COL, INTERVIEWTIME_END_COL],
-        INTERVIEWTIME_TABLE
+def GetConventionTimes(cursor: SqliteDB) -> list[TimeInterval]:
+    conventionTimesObj = cursor.FetchAll(cursor.Q(
+        [CONVENTIONTIME_START_COL, CONVENTIONTIME_END_COL],
+        CONVENTIONTIME_TABLE
     ))
-    interviewTimes = []
-    for timeObj in interviewTimesObj:
+    conventionTimes = []
+    for timeObj in conventionTimesObj:
         getTime = lambda col: datetime.fromisoformat(timeObj[col.name])
-        start = getTime(INTERVIEWTIME_START_COL)
-        end = getTime(INTERVIEWTIME_END_COL)
-        interviewTimes.append(TimeInterval(start, end-start))
-    interviewTimes.sort(key = lambda t: t.time)
-    return interviewTimes
+        start = getTime(CONVENTIONTIME_START_COL)
+        end = getTime(CONVENTIONTIME_END_COL)
+        conventionTimes.append(TimeInterval(start, end-start))
+    conventionTimes.sort(key = lambda t: t.time)
+    return conventionTimes
 
 COMPANY_TABLE = createTable("company")
-COMPANY_NAME_COL = COMPANY_TABLE.CreateColumn("companyName", VarCharType(50), isPrimary=True)
+COMPANY_COMPANYNAME_COL = COMPANY_TABLE.CreateColumn("companyName", VarCharType(50), isPrimary=True)
 
-def AddCompany(cursor: SqliteDB, name: str):
+COMPANYROOM_TABLE = createTable("companyRoom")
+COMPANYROOM_TABLE.CreateForeignKey(COMPANY_COMPANYNAME_COL, isPrimary=False)
+COMPANYROOM_ROOMNAME_COL = COMPANYROOM_TABLE.CreateColumn("roomName", VarCharType(50), isPrimary=True)
+
+def AddCompanyRoom(cursor: SqliteDB, companyName: str, roomName: str):
+    if (not cursor.Exists(cursor.Q(
+        [COMPANY_COMPANYNAME_COL], 
+        COMPANY_TABLE,
+        {COMPANY_COMPANYNAME_COL: companyName}
+    ))):
+        cursor.InsertIntoTable(COMPANY_TABLE, {COMPANY_COMPANYNAME_COL: [companyName]})
+
     cursor.InsertIntoTable(
-        COMPANY_TABLE, {COMPANY_NAME_COL: [name]}
-    )
-
-def GetCompanies(cursor: SqliteDB) -> set[str]:
-
-    return set((
-        c[COMPANY_NAME_COL.name] for c in 
-        cursor.FetchAll(cursor.Q(
-            [COMPANY_NAME_COL],
-            COMPANY_TABLE
-        ))
-    ))
-
-ROOM_TABLE = createTable("room")
-ROOM_TABLE.CreateForeignKey(COMPANY_NAME_COL, isPrimary=False)
-ROOM_NAME_COL = ROOM_TABLE.CreateColumn("roomName", VarCharType(50), isPrimary=True)
-ROOM_LENGTH_COL = ROOM_TABLE.CreateColumn("length", INTEGER_TYPE)
-ROOM_START_COL = ROOM_TABLE.CreateColumn("start", DATETIME_TYPE)
-ROOM_END_COL = ROOM_TABLE.CreateColumn("end", DATETIME_TYPE)
-
-def AddRoom(cursor: SqliteDB, companyName: str, roomName: str, roomLen: str, interval: TimeInterval):
-    cursor.InsertIntoTable(
-        ROOM_TABLE, {
-            COMPANY_NAME_COL: [companyName],
-            ROOM_NAME_COL: [roomName],
-            ROOM_LENGTH_COL: [roomLen],
-            ROOM_START_COL: [interval.time],
-            ROOM_END_COL: [interval.end]
+        COMPANYROOM_TABLE, {
+            COMPANY_COMPANYNAME_COL: [companyName],
+            COMPANYROOM_ROOMNAME_COL: [roomName]
         }
     )
 
-def GetRooms(cursor: SqliteDB) -> dict[str, str]:
+def GetCompanyRooms(cursor: SqliteDB) -> dict[str, str]:
     roomsObj = cursor.FetchAll(cursor.Q(
-        [COMPANY_NAME_COL, ROOM_NAME_COL],
-        ROOM_TABLE
+        [COMPANY_COMPANYNAME_COL, COMPANYROOM_ROOMNAME_COL],
+        COMPANYROOM_TABLE
     ))
 
     rooms = {}
     for roomObj in roomsObj:
-        companyName = roomObj[COMPANY_NAME_COL.name]
-        roomName = roomObj[ROOM_NAME_COL.name]
+        companyName = roomObj[COMPANY_COMPANYNAME_COL.name]
+        roomName = roomObj[COMPANYROOM_ROOMNAME_COL.name]
         rooms[companyName] = rooms.get(companyName, []) + [roomName]
 
     return rooms
 
+ROOMINTERVIEW_TABLE = createTable("roomInterview")
+ROOMINTERVIEW_TABLE.CreateForeignKey(COMPANYROOM_ROOMNAME_COL, isPrimary=True)
+ROOMINTERVIEW_LENGTH_COL = ROOMINTERVIEW_TABLE.CreateColumn("length", INTEGER_TYPE)
+ROOMINTERVIEW_START_COL = ROOMINTERVIEW_TABLE.CreateColumn("start", DATETIME_TYPE)
+ROOMINTERVIEW_END_COL = ROOMINTERVIEW_TABLE.CreateColumn("end", DATETIME_TYPE)
+
+def AddRoom(cursor: SqliteDB, roomName: str, roomLen: str, interval: TimeInterval):
+    cursor.InsertIntoTable(
+        ROOMINTERVIEW_TABLE, {
+            COMPANYROOM_ROOMNAME_COL: [roomName],
+            ROOMINTERVIEW_LENGTH_COL: [roomLen],
+            ROOMINTERVIEW_START_COL: [interval.time],
+            ROOMINTERVIEW_END_COL: [interval.end]
+        }
+    )
+
+def GetRoomsWithInterview(cursor: SqliteDB) -> set[str]:
+    return set([
+        r[COMPANYROOM_ROOMNAME_COL.name] 
+        for r in cursor.FetchAll(cursor.Q(
+            [COMPANYROOM_ROOMNAME_COL],
+            ROOMINTERVIEW_TABLE
+        ))
+    ])
+
 def GetRoomLengths(cursor: SqliteDB) -> dict[str, int]:
     return {
-        r[ROOM_NAME_COL.name]:r[ROOM_LENGTH_COL.name] 
+        r[COMPANYROOM_ROOMNAME_COL.name]:r[ROOMINTERVIEW_LENGTH_COL.name] 
         for r in cursor.FetchAll(cursor.Q(
-            [ROOM_NAME_COL, ROOM_LENGTH_COL],
-            ROOM_TABLE
+            [COMPANYROOM_ROOMNAME_COL, ROOMINTERVIEW_LENGTH_COL],
+            ROOMINTERVIEW_TABLE
         ))
     }
 
 def GetRoomIntervals(cursor: SqliteDB) -> dict[str, TimeInterval]:
     roomIntervalsObj = cursor.FetchAll(cursor.Q(
-        [ROOM_NAME_COL, ROOM_START_COL, ROOM_END_COL],
-        ROOM_TABLE
+        [COMPANYROOM_ROOMNAME_COL, ROOMINTERVIEW_START_COL, ROOMINTERVIEW_END_COL],
+        ROOMINTERVIEW_TABLE
     ))
     roomIntervals = {}
     for timeObj in roomIntervalsObj:
         getTime = lambda col: datetime.fromisoformat(timeObj[col.name])
-        room = timeObj[ROOM_NAME_COL.name]
-        start = getTime(INTERVIEWTIME_START_COL)
-        end = getTime(INTERVIEWTIME_END_COL)
+        room = timeObj[COMPANYROOM_ROOMNAME_COL.name]
+        start = getTime(CONVENTIONTIME_START_COL)
+        end = getTime(CONVENTIONTIME_END_COL)
 
         roomIntervals[room] = (TimeInterval(start, end-start))
     return roomIntervals
 
 ROOMBREAKS_TABLE = createTable("roomBreak")
-ROOMBREAKS_TABLE.CreateForeignKey(ROOM_NAME_COL, isPrimary=True)
+ROOMBREAKS_TABLE.CreateForeignKey(COMPANYROOM_ROOMNAME_COL, isPrimary=True)
 ROOMBREAKS_START_COL = ROOMBREAKS_TABLE.CreateColumn("start", DATETIME_TYPE, isPrimary=True)
 ROOMBREAKS_END_COL = ROOMBREAKS_TABLE.CreateColumn("end", DATETIME_TYPE)
 
 def AddRoomBreak(cursor: SqliteDB,roomName: str, timeInt: TimeInterval):
     cursor.InsertIntoTable(
         ROOMBREAKS_TABLE, {
-            ROOM_NAME_COL: [roomName],
+            COMPANYROOM_ROOMNAME_COL: [roomName],
             ROOMBREAKS_START_COL: [timeInt.time],
             ROOMBREAKS_END_COL: [timeInt.end]
         }
@@ -127,13 +139,13 @@ def AddRoomBreak(cursor: SqliteDB,roomName: str, timeInt: TimeInterval):
 
 def GetRoomBreaks(cursor: SqliteDB) -> dict[str, list[TimeInterval]]:
     roomBreaksObj = cursor.FetchAll(cursor.Q(
-        [ROOM_NAME_COL, ROOMBREAKS_START_COL, ROOMBREAKS_END_COL],
+        [COMPANYROOM_ROOMNAME_COL, ROOMBREAKS_START_COL, ROOMBREAKS_END_COL],
         ROOMBREAKS_TABLE
     ))  
 
     roomBreaks = {}
     for roomBreakObj in roomBreaksObj:
-        name = roomBreakObj[ROOM_NAME_COL.name]
+        name = roomBreakObj[COMPANYROOM_ROOMNAME_COL.name]
         getTime = lambda col: datetime.fromisoformat(roomBreakObj[col.name])
         start = getTime(ROOMBREAKS_START_COL)
         end = getTime(ROOMBREAKS_END_COL)
@@ -143,8 +155,8 @@ def GetRoomBreaks(cursor: SqliteDB) -> dict[str, list[TimeInterval]]:
     return roomBreaks
 
 
-COFFEECHAT_TABLE = createTable("coffeeChat")
-COFFEECHAT_TABLE.CreateForeignKey(ROOM_NAME_COL, isPrimary=True)
+COFFEECHAT_TABLE = createTable("roomCoffeeChat")
+COFFEECHAT_TABLE.CreateForeignKey(COMPANYROOM_ROOMNAME_COL, isPrimary=True)
 COFFEECHAT_CAPACITY_COL = COFFEECHAT_TABLE.CreateColumn("capacity", INTEGER_TYPE)
 COFFEECHAT_START_COL = COFFEECHAT_TABLE.CreateColumn("start", DATETIME_TYPE)
 COFFEECHAT_END_COL = COFFEECHAT_TABLE.CreateColumn("end", DATETIME_TYPE)
@@ -152,7 +164,7 @@ COFFEECHAT_END_COL = COFFEECHAT_TABLE.CreateColumn("end", DATETIME_TYPE)
 def AddCoffeeChat(cursor: SqliteDB, roomName: str, capacity: str, interval: TimeInterval):
     cursor.InsertIntoTable(
         COFFEECHAT_TABLE, {
-            ROOM_NAME_COL: [roomName],
+            COMPANYROOM_ROOMNAME_COL: [roomName],
             COFFEECHAT_CAPACITY_COL: [capacity],
             COFFEECHAT_START_COL: [interval.time],
             COFFEECHAT_END_COL: [interval.end]
@@ -161,13 +173,13 @@ def AddCoffeeChat(cursor: SqliteDB, roomName: str, capacity: str, interval: Time
 
 def GetCoffeeChatTimes(cursor: SqliteDB) -> dict[str, TimeInterval]:
     coffeeChatsObj = cursor.FetchAll(cursor.Q(
-        [ROOM_NAME_COL, COFFEECHAT_START_COL, COFFEECHAT_END_COL],
+        [COMPANYROOM_ROOMNAME_COL, COFFEECHAT_START_COL, COFFEECHAT_END_COL],
         COFFEECHAT_TABLE
     ))
 
     coffeeChatTimes = {}
     for coffeeChatObj in coffeeChatsObj:
-        room = coffeeChatObj[ROOM_NAME_COL.name]
+        room = coffeeChatObj[COMPANYROOM_ROOMNAME_COL.name]
         getTime = lambda col: datetime.fromisoformat(coffeeChatObj[col.name])
         start = getTime(ROOMBREAKS_START_COL)
         end = getTime(ROOMBREAKS_END_COL)
@@ -177,32 +189,46 @@ def GetCoffeeChatTimes(cursor: SqliteDB) -> dict[str, TimeInterval]:
 
 def GetCoffeeChatCapacities(cursor: SqliteDB) -> dict[str, int]:
     coffeeChatsObj = cursor.FetchAll(cursor.Q(
-        [ROOM_NAME_COL, COFFEECHAT_CAPACITY_COL],
+        [COMPANYROOM_ROOMNAME_COL, COFFEECHAT_CAPACITY_COL],
         COFFEECHAT_TABLE
     ))
     return {
-        obj[ROOM_NAME_COL.name]:obj[COFFEECHAT_CAPACITY_COL.name] 
+        obj[COMPANYROOM_ROOMNAME_COL.name]:obj[COFFEECHAT_CAPACITY_COL.name] 
         for obj in coffeeChatsObj
     }
 
 
 ATTENDEES_TABLE = createTable("attendee")
 ATTENDEES_ID_COL = ATTENDEES_TABLE.CreateColumn("attendeeID", INTEGER_TYPE, isPrimary=True)
+ATTENDEES_NAME_COL = ATTENDEES_TABLE.CreateColumn("attendeeName", VarCharType(50))
 
-def AddAttendee(cursor: SqliteDB, attendeeId: str):
+def AddAttendee(cursor: SqliteDB, attendeeId: str, name: str):
     cursor.InsertIntoTable(
         ATTENDEES_TABLE, {
-            ATTENDEES_ID_COL: [attendeeId]
+            ATTENDEES_ID_COL: [attendeeId],
+            ATTENDEES_NAME_COL: [name]
         }
     )
 
 def GetAttendees(cursor: SqliteDB) -> set[str]:
     return set((
-        c[ATTENDEES_ID_COL.name] for c in cursor.FetchAll(cursor.Q(
+        c[ATTENDEES_ID_COL.name]
+        for c in cursor.FetchAll(cursor.Q(
             [ATTENDEES_ID_COL],
-            ATTENDEES_TABLE
+            ATTENDEES_TABLE,
+            orderBys=[ATTENDEES_ID_COL]
         ))
     ))
+    
+def GetAttendeeNames(cursor: SqliteDB) -> dict[str, str]:
+    return {
+        c[ATTENDEES_ID_COL.name]:c[ATTENDEES_NAME_COL.name] 
+        for c in cursor.FetchAll(cursor.Q(
+            [ATTENDEES_ID_COL, ATTENDEES_NAME_COL],
+            ATTENDEES_TABLE,
+            orderBys=[ATTENDEES_ID_COL]
+        ))
+    }
 
 ATTENDEEBREAKS_TABLE = createTable("attendeeBreak")
 ATTENDEEBREAKS_TABLE.CreateForeignKey(ATTENDEES_ID_COL, isPrimary=True)
@@ -238,55 +264,55 @@ def GetAttendeeBreaks(cursor: SqliteDB) -> dict[str, list[TimeInterval]]:
 
 ATTENDEEPREFS_TABLE = createTable("attendeePreference")
 ATTENDEEPREFS_TABLE.CreateForeignKey(ATTENDEES_ID_COL, isPrimary=True)
-ATTENDEEPREFS_TABLE.CreateForeignKey(COMPANY_NAME_COL, isPrimary=True)
+ATTENDEEPREFS_TABLE.CreateForeignKey(COMPANY_COMPANYNAME_COL, isPrimary=True)
 ATTENDEEBREAKS_PREF_COL = ATTENDEEPREFS_TABLE.CreateColumn("preference", INTEGER_TYPE)
 
 def AddAttendeePref(cursor: SqliteDB, attendeeId: str, companyName: str, pref: str):
     cursor.InsertIntoTable(
         ATTENDEEPREFS_TABLE, {
             ATTENDEES_ID_COL: [attendeeId],
-            COMPANY_NAME_COL: [companyName],
+            COMPANY_COMPANYNAME_COL: [companyName],
             ATTENDEEBREAKS_PREF_COL: [pref]
         }
     )
 
 def GetAttendeePrefs(cursor: SqliteDB) -> dict[str, dict[str, int]]:
     attsPrefsObj = cursor.FetchAll(cursor.Q(
-        [ATTENDEES_ID_COL, COMPANY_NAME_COL, ATTENDEEBREAKS_PREF_COL],
+        [ATTENDEES_ID_COL, COMPANY_COMPANYNAME_COL, ATTENDEEBREAKS_PREF_COL],
         ATTENDEEPREFS_TABLE
     ))
     
     attsPrefs = {}
     for attPrefObj in attsPrefsObj:
         att = attPrefObj[ATTENDEES_ID_COL.name]
-        company = attPrefObj[COMPANY_NAME_COL.name]
+        company = attPrefObj[COMPANY_COMPANYNAME_COL.name]
         pref = attPrefObj[ATTENDEEBREAKS_PREF_COL.name]
         attPref = attsPrefs.get(att, {})
         attPref[company] = pref
         attsPrefs[att] = attPref
     return attsPrefs
 
-ROOMCANDIDATES_TABLE = createTable("roomCandidate")
-ROOMCANDIDATES_TABLE.CreateForeignKey(ROOM_NAME_COL, isPrimary=True)
-ROOMCANDIDATES_TABLE.CreateForeignKey(ATTENDEES_ID_COL, isPrimary=True)
+INTERVIEWCANDIDATES_TABLE = createTable("interviewCandidate")
+INTERVIEWCANDIDATES_TABLE.CreateForeignKey(COMPANYROOM_ROOMNAME_COL, isPrimary=True)
+INTERVIEWCANDIDATES_TABLE.CreateForeignKey(ATTENDEES_ID_COL, isPrimary=True)
 
-def AddRoomCandidate(cursor: SqliteDB, roomName: str, attendeeId: str):
+def AddInterviewCandidate(cursor: SqliteDB, roomName: str, attendeeId: str):
     cursor.InsertIntoTable(
-        ROOMCANDIDATES_TABLE, {
-            ROOM_NAME_COL: [roomName],
+        INTERVIEWCANDIDATES_TABLE, {
+            COMPANYROOM_ROOMNAME_COL: [roomName],
             ATTENDEES_ID_COL: [attendeeId]
         }
     )
 
-def GetRoomCandidates(cursor: SqliteDB) -> dict[str, set[str]]:
+def GetInterviewCandidates(cursor: SqliteDB) -> dict[str, set[str]]:
     roomCandidatesObj = cursor.FetchAll(cursor.Q(
-        [ROOM_NAME_COL, ATTENDEES_ID_COL],
-        ROOMCANDIDATES_TABLE
+        [COMPANYROOM_ROOMNAME_COL, ATTENDEES_ID_COL],
+        INTERVIEWCANDIDATES_TABLE
     ))
 
     roomCandidates = {}
     for roomCandidateObj in roomCandidatesObj:
-        room = roomCandidateObj[ROOM_NAME_COL.name]
+        room = roomCandidateObj[COMPANYROOM_ROOMNAME_COL.name]
         att = roomCandidateObj[ATTENDEES_ID_COL.name]
 
         roomCandidates[room] = roomCandidates.get(room, set()).union([att])
@@ -295,37 +321,42 @@ def GetRoomCandidates(cursor: SqliteDB) -> dict[str, set[str]]:
 
 
 COFFEECHATCANDIDATES_TABLE = createTable("coffeeChatCandidate")
-COFFEECHATCANDIDATES_TABLE.CreateForeignKey(ROOM_NAME_COL, isPrimary=True)
+COFFEECHATCANDIDATES_TABLE.CreateForeignKey(COMPANYROOM_ROOMNAME_COL, isPrimary=True)
 COFFEECHATCANDIDATES_TABLE.CreateForeignKey(ATTENDEES_ID_COL, isPrimary=True)
 
 def AddCoffeeChatCandidate(cursor: SqliteDB, roomName: str, attId: int):
     cursor.InsertIntoTable(
         COFFEECHATCANDIDATES_TABLE, {
-            ROOM_NAME_COL: [roomName],
+            COMPANYROOM_ROOMNAME_COL: [roomName],
             ATTENDEES_ID_COL: [attId],
         }
     )
 
 def GetCoffeeChatCandidates(cursor: SqliteDB) -> dict[str, set[int]]:
     ccCandidatesObj = cursor.FetchAll(cursor.Q(
-        [ROOM_NAME_COL, ATTENDEES_ID_COL],
+        [COMPANYROOM_ROOMNAME_COL, ATTENDEES_ID_COL],
         COFFEECHATCANDIDATES_TABLE
     ))
 
     ccCandidates = {}
     for roomCandidateObj in ccCandidatesObj:
-        room = roomCandidateObj[ROOM_NAME_COL.name]
+        room = roomCandidateObj[COMPANYROOM_ROOMNAME_COL.name]
         att = roomCandidateObj[ATTENDEES_ID_COL.name]
 
         ccCandidates[room] = ccCandidates.get(room, set()).union([att])
     return ccCandidates
 
-def clearAllTables(cursor: SqliteDB):
+def clearAllTables(cursor: SqliteDB): 
     for table in TABLES:
         cursor.EmptyTable(table)
 
 if __name__ == "__main__":
-    WriteSchema(
-        "schema.sql",
-        TABLES
-    )
+    try:
+        remove(DB_FILENAME)
+    except FileNotFoundError: 
+        pass
+    finally:
+        WriteSchema(
+            "schema.sql",
+            TABLES
+        )

@@ -27,70 +27,74 @@ def getFileContents(fn: str) -> str:
     with open(fn, 'r', encoding='utf-8') as f:
         return f.read()
 
-def readInterviewTimes(doc: str, cursor: SqliteDB):
-    cursor.EmptyTable(INTERVIEWTIME_TABLE)
-    cursor.EmptyTable(ROOM_TABLE)
+def readConventionTimes(doc: str, cursor: SqliteDB):
+    cursor.EmptyTable(CONVENTIONTIME_TABLE)
+    cursor.EmptyTable(ROOMINTERVIEW_TABLE)
     cursor.EmptyTable(ATTENDEEBREAKS_TABLE)
-    interviewTimes = []
+    conventionTimes = []
 
     for start,end in getCols(doc, 2, True):
         interval = TimeInterval.fromStr(start, end)
 
         ValidationException.throwIfFalse(
-            not any(interval.isIntersecting(t) for t in interviewTimes), 
-            f"invalid interview day: interview day {interval} intersects with other intervals {interviewTimes}"
+            not any(interval.isIntersecting(t) for t in conventionTimes), 
+            f"invalid interview day: interview day {interval} intersects with other intervals {conventionTimes}"
         )
-        interviewTimes.append(interval)
-        AddInterviewTime(cursor, interval)
+        conventionTimes.append(interval)
+        AddConventionTime(cursor, interval)
 
 #companyNames = set()
-def readCompanyNames(doc: str, cursor: SqliteDB):
+def readCompanyRoomNames(doc: str, cursor: SqliteDB):
+    cursor.EmptyTable(COMPANYROOM_TABLE)
     cursor.EmptyTable(COMPANY_TABLE)
 
-    companyNames = set()
-    for (name,) in getCols(doc, 1, True):
-        ValidationException.throwIfFalse(
-            name not in companyNames, 
-            f"duplicate company name ({name})"
-        )
-        companyNames.add(name)
-        AddCompany(cursor, name)
-
-def readRoomNames(doc: str, cursor: SqliteDB):
-    cursor.EmptyTable(ROOM_TABLE)
-
-    interviewTimes = GetInterviewTimes(cursor)
-    companyNames = GetCompanies(cursor)
     roomNames = set()
+    for (companyName,roomName) in getCols(doc, 2, True):
+        ValidationException.throwIfFalse(
+            roomName not in roomNames, 
+            f"duplicate room name ({roomName})"
+        )
+        roomNames.add(roomName)
+        AddCompanyRoom(cursor, companyName, roomName)
 
-    for companyName,roomName,length,startStr,endStr in getCols(doc, 5, True):
+def readRoomInterviews(doc: str, cursor: SqliteDB):
+    cursor.EmptyTable(ROOMINTERVIEW_TABLE)
+    cursor.EmptyTable(INTERVIEWCANDIDATES_TABLE)
+
+    conventionTimes = GetConventionTimes(cursor)
+    roomNames: set[str] = set()
+    for companyRoomNames in GetCompanyRooms(cursor).values():
+        roomNames.update(companyRoomNames)
+
+    roomNamesWithInterview: set[str] = set()
+    for roomName,length,startStr,endStr in getCols(doc, 4, True):
         interval = TimeInterval.fromStr(startStr, endStr)
 
         ValidationException.throwIfFalse(
-            companyName in companyNames, 
-            f"invalid company name ({companyName})"
+            roomName in roomNames, 
+            f"invalid room name ({roomName})"
         )
         ValidationException.throwIfFalse(
-            roomName not in roomNames, 
+            roomName not in roomNamesWithInterview, 
             f"room name ({roomName}) not unique"
         )
-        roomNames.add(roomName)
+        roomNamesWithInterview.add(roomName)
         ValidationException.throwIfFalse(
             length.isdigit and 0 < int(length), 
             f"invalid length ({length}), must be positive integer"
         )
         ValidationException.throwIfFalse(
-            any(interval.isIntersecting(d) for d in interviewTimes), 
-            f"invalid interval: break at {interval} does not intersect with interview times: {interviewTimes}"
+            any(interval.isIntersecting(d) for d in conventionTimes), 
+            f"invalid interval: break at {interval} does not intersect with interview times: {conventionTimes}"
         )
-        AddRoom(cursor, companyName, roomName, int(length), interval)
+        AddRoom(cursor, roomName, int(length), interval)
 
 def readRoomBreaks(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(ROOMBREAKS_TABLE)
 
-    interviewTimes = GetInterviewTimes(cursor)
+    conventionTimes = GetConventionTimes(cursor)
     roomIntervals = GetRoomIntervals(cursor)
-    companyRoomNames = GetRooms(cursor)
+    companyRoomNames = GetCompanyRooms(cursor)
     
     companyRoomBreaks = {}
     for roomNames in companyRoomNames.values():
@@ -105,8 +109,8 @@ def readRoomBreaks(doc: str, cursor: SqliteDB):
             f"invalid room name ({roomName})"
         )
         ValidationException.throwIfFalse(
-            any(d.contains(b) for d in interviewTimes), 
-            f"invalid break: break at {b} does not intersect with interview times: {interviewTimes}"
+            any(d.contains(b) for d in conventionTimes), 
+            f"invalid break: break at {b} does not intersect with interview times: {conventionTimes}"
         )
         ValidationException.throwIfFalse(
             roomIntervals[roomName].contains(b),
@@ -124,9 +128,9 @@ def readCoffeeChat(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(COFFEECHAT_TABLE)
     cursor.EmptyTable(COFFEECHATCANDIDATES_TABLE)
 
-    interviewTimes = GetInterviewTimes(cursor)
+    conventionTimes = GetConventionTimes(cursor)
     roomIntervals = GetRoomIntervals(cursor)
-    companyRoomNames = GetRooms(cursor)
+    companyRoomNames = GetCompanyRooms(cursor)
     
     coffeeChatRooms: set[str] = set()
 
@@ -146,8 +150,8 @@ def readCoffeeChat(doc: str, cursor: SqliteDB):
             f"invalid capacity ({capacity}), must be positive integer"
         )
         ValidationException.throwIfFalse(
-            any(d.contains(timeInt) for d in interviewTimes), 
-            f"invalid coffee chat: chat at {timeInt} does not intersect with interview times: {interviewTimes}"
+            any(d.contains(timeInt) for d in conventionTimes), 
+            f"invalid coffee chat: chat at {timeInt} does not intersect with interview times: {conventionTimes}"
         )
         ValidationException.throwIfFalse(
             roomIntervals[roomName].contains(timeInt),
@@ -161,7 +165,7 @@ def readCoffeeChat(doc: str, cursor: SqliteDB):
 def readCoffeeChatCandidates(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(COFFEECHATCANDIDATES_TABLE)
 
-    companyRoomNames = GetRooms(cursor)
+    companyRoomNames = GetCompanyRooms(cursor)
     coffeeChatRooms = set(GetCoffeeChatCapacities(cursor).keys())
     
     attendeeIDs = GetAttendees(cursor)
@@ -203,18 +207,18 @@ def readAttendeeNames(doc: str, cursor: SqliteDB):
 
     attendeeIDs = set()
 
-    for (attendeeID,) in getCols(doc, 1, True):
+    for (attendeeID,name) in getCols(doc, 2, True):
         ValidationException.throwIfFalse(
             attendeeID not in attendeeIDs,
             f"duplicate attendee ID ({attendeeID})"
         )
         attendeeIDs.add(attendeeID)
-        AddAttendee(cursor, attendeeID)
+        AddAttendee(cursor, attendeeID,name)
 
 def readAttendeeBreaks(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(ATTENDEEBREAKS_TABLE)
 
-    interviewTimes = GetInterviewTimes(cursor)
+    conventionTimes = GetConventionTimes(cursor)
     attendeeIDs = GetAttendees(cursor)
 
     attendeeBreaks = {a: [] for a in attendeeIDs}
@@ -228,8 +232,8 @@ def readAttendeeBreaks(doc: str, cursor: SqliteDB):
             f"invalid attendee ID ({attendeeID})"
         )
         ValidationException.throwIfFalse(
-            any(d.contains(b) for d in interviewTimes),
-            f"invalid break: break at {b} does not intersect with interview times: {interviewTimes}"
+            any(d.contains(b) for d in conventionTimes),
+            f"invalid break: break at {b} does not intersect with interview times: {conventionTimes}"
         )
         ValidationException.throwIfFalse(
             all(not b.isIntersecting(b2) for b2 in attendeeBreaks[attendeeID]),
@@ -241,7 +245,7 @@ def readAttendeeBreaks(doc: str, cursor: SqliteDB):
 def readAttendeePrefs(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(ATTENDEEPREFS_TABLE)
 
-    companyNames = GetCompanies(cursor)
+    companyNames = set(GetCompanyRooms(cursor).keys())
     attendeeIDs = GetAttendees(cursor)
 
     lowestRank = -float('inf')
@@ -262,7 +266,7 @@ def readAttendeePrefs(doc: str, cursor: SqliteDB):
             f"duplicate company preference for attendee '{attendeeID}' for company '{companyName}'"
         )
         ValidationException.throwIfFalse(
-            str.isdigit(pref) and 1 < int(pref),
+            str.isdigit(pref) and 0 < int(pref),
             f"invalid preference ({pref}), must be a positive integer"
         )
         lowestRank = max(lowestRank, int(pref))
@@ -278,10 +282,11 @@ def readAttendeePrefs(doc: str, cursor: SqliteDB):
 
 
 #roomCandidates = {a: set() for a in roomNames}
-def readRoomCandidates(doc: str, cursor: SqliteDB):
-    cursor.EmptyTable(ROOMCANDIDATES_TABLE)
+def readInterviewCandidates(doc: str, cursor: SqliteDB):
+    cursor.EmptyTable(INTERVIEWCANDIDATES_TABLE)
 
-    companyRoomNames = GetRooms(cursor)
+    companyRoomNames = GetCompanyRooms(cursor)
+    roomsWithInterview = GetRoomsWithInterview(cursor)
     attendeeIDs = GetAttendees(cursor)
     
     roomCandidates: dict[str, set[int]] = {}
@@ -301,16 +306,20 @@ def readRoomCandidates(doc: str, cursor: SqliteDB):
             f"invalid room name ({roomName})"
         )
         ValidationException.throwIfFalse(
+            roomName in roomsWithInterview,
+            f"room name ({roomName}) does not have interviews"
+        )
+        ValidationException.throwIfFalse(
             attendeeId not in roomCandidates[roomName],
             f"duplicate attendee for room candidate ({roomName})"
         )
         roomCandidates[roomName].add(attendeeId)
-        AddRoomCandidate(cursor, roomName, attendeeId)
+        AddInterviewCandidate(cursor, roomName, attendeeId)
 
-def getSomeTimes(interviewTimes: list[TimeInterval], mins: int, breaks: list[TimeInterval], interval: TimeInterval) -> list[TimeInterval]:
+def getSomeTimes(conventionTimes: list[TimeInterval], mins: int, breaks: list[TimeInterval], interval: TimeInterval) -> list[TimeInterval]:
     times = []
 
-    for timeInt in [t for t in interviewTimes if t.isIntersecting(interval)]:
+    for timeInt in [t for t in conventionTimes if t.isIntersecting(interval)]:
         startTime = max(timeInt.time, interval.time) # start time in secs
         endTime = min(timeInt.end, interval.end)
 
@@ -341,33 +350,27 @@ def getSomeTimes(interviewTimes: list[TimeInterval], mins: int, breaks: list[Tim
 
 
 def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendees: list[Attendee]):
-    interviewTimes = GetInterviewTimes(cursor)
+    conventionTimes = GetConventionTimes(cursor)
 
-    companyNames = GetCompanies(cursor) 
-
-    companyRoomNames = GetRooms(cursor)
+    companyRoomNames = GetCompanyRooms(cursor)
     roomLengths = GetRoomLengths(cursor)
     roomIntervals = GetRoomIntervals(cursor)
     roomBreaks= GetRoomBreaks(cursor)
 
-    attendeeIds = GetAttendees(cursor)
+    attendeeIdToName = GetAttendeeNames(cursor)
     attendeePrefs = GetAttendeePrefs(cursor)
     attendeeBreaks = GetAttendeeBreaks(cursor)
 
-    roomCandidates = GetRoomCandidates(cursor)
+    interviewCandidates = GetInterviewCandidates(cursor)
 
     coffeeChatCapacities = GetCoffeeChatCapacities(cursor)
     coffeeChatTimes = GetCoffeeChatTimes(cursor)
     coffeeChatCandidates = GetCoffeeChatCandidates(cursor)
 
     mandatoryTables = [
-        (interviewTimes, 'Interview Times'),
-        (companyNames, 'Company Names'),
-        (companyRoomNames, 'Rooms'),
-        (roomLengths, 'Rooms'),
-        (roomIntervals, 'Rooms'),
-        (attendeeIds, 'Attendees'),
-        (roomCandidates, 'Room Candidates')
+        (conventionTimes, 'Interview Times'),
+        (companyRoomNames, 'Company Rooms'),
+        (attendeeIdToName, 'Attendees')
     ]
 
     for table, tableName in mandatoryTables:
@@ -376,18 +379,18 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
             f'a mandatory table ({tableName}) is empty'
         )
 
-    companyNameToCompany = {name:Company(name) for name in companyNames}
+    companyNameToCompany = {name:Company(name) for name in companyRoomNames.keys()}
     for company in companyNameToCompany.values():
         companies.append(company)
 
     attendeeIDToAttendee = {}
-    for attId in attendeeIds:
+    for attId,name in attendeeIdToName.items():
         prefs = []
         for companyName in companyNameToCompany:
             pref = attendeePrefs.get(attId, {}).get(companyName, 0)
             prefs.append(CompanyPreference(companyNameToCompany[companyName], pref))
         
-        att = Attendee(attId, prefs, attendeeBreaks.get(attId, []))
+        att = Attendee(attId, name, prefs, attendeeBreaks.get(attId, []))
         attendeeIDToAttendee[attId] = att
         attendees.append(att)
 
@@ -401,11 +404,11 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
             if roomName in coffeeChatTimes:
                 breaks.append(coffeeChatTimes[roomName])
 
-            times = getSomeTimes(interviewTimes, roomLengths[roomName], breaks, interval)
+            times = getSomeTimes(conventionTimes, roomLengths[roomName], breaks, interval)
             room = company.addCompanyRoom(
                 roomName,
                 times, 
-                [attendeeIDToAttendee[attId] for attId in roomCandidates.get(roomName,[])]
+                [attendeeIDToAttendee[attId] for attId in interviewCandidates.get(roomName,[])]
             )
             if roomName in coffeeChatTimes:
                 room.setCoffeeChat(

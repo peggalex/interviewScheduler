@@ -69,8 +69,15 @@ class Company:
     def wantsAttendee(self, attendee: Attendee, isCoffeeChat: bool) -> bool:
         return any(room.wantsAttendee(attendee, isCoffeeChat) for room in self.rooms)
 
+    def getAppointmentFor(self, attendee: Optional[Attendee], appToIgnore: Appointment, isCoffeeChat: bool) -> Optional[Appointment]:
+        for room in self.rooms:
+            app = room.getAppointmentFor(attendee, appToIgnore, isCoffeeChat)
+            if app is not None:
+                return app
+        return None
+
     def hasAttendee(self, attendee: Attendee, appToIgnore: Appointment, isCoffeeChat: bool) -> bool:
-        return any(room.hasAttendee(attendee, appToIgnore, isCoffeeChat) for room in self.rooms)
+        return self.getAppointmentFor(attendee, appToIgnore, isCoffeeChat) is not None
 
     def getAppointments(self) -> list[Appointment]:
         apps = []
@@ -172,12 +179,17 @@ class CompanyRoom:
             return True
         return attendee in (self.coffeeChat.candidates if isCoffeeChat else self.candidates)
 
-    def hasAttendee(self, attendee: Attendee, appToIgnore: Appointment, isCoffeeChat: bool) -> bool:
+    def getAppointmentFor(self, attendee: Optional[Attendee], appToIgnore: Appointment, isCoffeeChat: bool) -> Optional[Appointment]:
+        # app to ignore is an app that shouldn't be included in the appointment search,
+        #   enables swapping between two apps in the same company/room
         if attendee:
             for app in self.appointments:
                 if app.isAttendee(attendee) and app.isCoffeeChat == isCoffeeChat and app != appToIgnore:
-                    return True
-        return False       
+                    return app
+        return None
+
+    def hasAttendee(self, attendee: Optional[Attendee], appToIgnore: Appointment, isCoffeeChat: bool) -> bool:
+        return self.getAppointmentFor(attendee, appToIgnore, isCoffeeChat) is not None
 
     def setCoffeeChat(self, capacity: int, timeInt: TimeInterval, candidates: set[Attendee]):
         assert(self.coffeeChat is None)
@@ -203,7 +215,7 @@ class Appointment(TimeInterval):
         self.isCoffeeChat = isCoffeeChat
 
     def __repr__(self):
-        return f"{self.company.name}-{self.companyRoom.name}@{self.time.strftime('%b %d %H:%M')}"
+        return f"{self.companyRoom.name}@{self.time.strftime('%b %d %H:%M')}"
 
     def isAttendee(self, attendee):
         return attendee != None and self.attendee == attendee
@@ -221,11 +233,17 @@ class Appointment(TimeInterval):
 
             if not self.companyRoom.wantsAttendee(attendee, self.isCoffeeChat):
                 return f'Room ({self.companyRoom.name}) does not want attendee ({attId})'
-            if appIntersects.hasOtherAppsAtTime(attendee, self):
-                return f'Attendee ({attId}) has other apps at time {timeStr}'
-            if attendee.isBusy(self):
-                return f'Attendee ({attId}) has a break at time {timeStr}'
-            if self.company.hasAttendee(attendee, appToIgnore, self.isCoffeeChat):
+
+            appAtTime = appIntersects.getOtherAppAtTime(attendee, self)
+            if appAtTime is not None:
+                return f'Attendee ({attId}) has conflicting appointments at time {timeStr}, such as {repr(appAtTime)}'
+            
+            breakAtTime = attendee.breakAtTime(self)
+            if breakAtTime is not None:
+                return f'Attendee ({attId}) has a break at the time {timeStr}, which lasts {breakAtTime}'
+            
+            appAtCompany = self.company.getAppointmentFor(attendee, appToIgnore, self.isCoffeeChat)
+            if appAtCompany is not None:
                 return f'company ({self.company.name}) already has an appointment for attendee ({attId})'
         return None
 
@@ -238,8 +256,8 @@ class Appointment(TimeInterval):
             and not self.company.hasAttendee(attendee, appToIgnore, self.isCoffeeChat)
         )
 
-    def swap(self, attendee: Attendee, appToAppsAtTime: dict[Appointment, set[Appointment]], appToIgnore: Appointment):
-        if self.canSwap(attendee, appToAppsAtTime, appToIgnore):
+    def swap(self, attendee: Attendee, appIntersects: AppointmentIntersects, appToIgnore: Appointment):
+        if self.canSwap(attendee, appIntersects, appToIgnore):
             self.attendee = attendee
         else:
             raise Exception('tried to swap an attendee which can\'t be swapped')
@@ -264,8 +282,9 @@ class CompanyPreference:
 
 class Attendee:
 
-    def __init__(self, uid: int, prefs: list[CompanyPreference], commitments: list[TimeInterval]):
+    def __init__(self, uid: int, name: str, prefs: list[CompanyPreference], commitments: list[TimeInterval]):
         self.uid = uid
+        self.name = name
         prefs.sort(key = lambda ap: -ap.pref)
         self.prefsLst = prefs
         self.prefsDic = {p.company:p.pref for p in prefs}
@@ -277,30 +296,67 @@ class Attendee:
     def __repr__(self) -> str:
         return str(self.uid)
 
-    def isBusy(self, timeInterval: TimeInterval) -> bool:
-        return any(commit.isIntersecting(timeInterval) for commit in self.commitments)
+    def breakAtTime(self, timeInterval: TimeInterval) -> TimeInterval:
+        for commit in self.commitments:
+            if commit.isIntersecting(timeInterval):
+                return commit
 
-    def getNoCompaniesWant(self, companies: list[Company], isCoffeeChat: bool) -> int:
+    def isBusy(self, timeInterval: TimeInterval) -> bool:
+        return self.breakAtTime(timeInterval) is not None
+
+    def getNoCompaniesWant(self, companies: list[Company], isCoffeeChat: Optional[bool]) -> int:
         return len([c for c in companies if c.wantsAttendee(self, isCoffeeChat)])
 
     def toJson(self):
         return {
+            'name': self.name,
             'commitments': [c.toJson() for c in self.commitments],
             'prefs': {c.name:p for c,p in self.prefsDic.items()}
         }
 
-def getJsonSchedule(companies: list[Company], attendees: list[Attendee], interviewTimes: list[TimeInterval]) -> dict:
+def getJsonSchedule(companies: list[Company], attendees: list[Attendee], conventionTimes: list[TimeInterval]) -> dict:
+    totalRanks, noApps, noAppsChosen, noAtts, varNoApps = getScheduleMetrics(companies)
+    
     return {
         'companies': {c.name: c.toJson() for c in companies},
         'attendees': {a.uid: a.toJson() for a in attendees},
-        'interviewTimes': [t.toJson() for t in interviewTimes],
-        'totalUtility': getUtility(companies),
-        'noAppointments': getNoApps(companies),
-        'noAttendeesChosen': getNoNotEmptyApps(companies) 
+        'conventionTimes': [t.toJson() for t in conventionTimes],
+        'totalUtility': totalRanks,
+        'noAppointments': noApps,
+        'noAppointmentsNotEmpty': noAppsChosen,
+        'noAttendeeesChosen': noAtts,
+        'varNoAppointments': varNoApps
     }
     
 def getUtility(companies: list[Company]):
     return sum(sum([app.getUtility() for app in c.getAppointments()]) for c in companies)
+
+def getScheduleMetrics(companies: list[Company]) -> tuple[int, int, int, int]:
+    ranks = []
+    noApps = 0
+    attToNoApps = {}
+
+    for company in companies:
+        for app in company.getAppointments():
+            noApps += 1
+            if app.isEmpty():
+                continue
+            att = app.attendee
+            attToNoApps[att] = attToNoApps.get(att, 0) + 1
+            ranks.append(att.getPref(company))
+    
+    noAppsLst = list(attToNoApps.values())
+    avgNoApps = sum(noAppsLst) / len(noAppsLst)
+    varNoApps = sum((x - avgNoApps)**2 for x in noAppsLst) / len(noAppsLst)
+
+    return (
+        sum(ranks),
+        noApps,
+        sum(noAppsLst),
+        len(attToNoApps.keys()),
+        varNoApps
+    )
+    
 
 def canSwapBoth(app1, att1, app2, att2, appIntersects):
     assert(not(app1 is None and app2 is None))
@@ -309,16 +365,22 @@ def canSwapBoth(app1, att1, app2, att2, appIntersects):
         and (app1 is None or app1.canSwap(att2, appIntersects, app2))
     )
 
-def swapBoth(app1, att1, app2, att2, appIntersects):
-    assert(canSwapBoth(app1, att1, app2, att2, appIntersects))
-    if app2:
-        app2.swap(att1, appIntersects, app1)
-    if app1:
-        app1.swap(att2, appIntersects, app2)
+def trySwapBoth(app1, att1, app2, att2, appIntersects) -> bool:
+    canSwap = canSwapBoth(app1, att1, app2, att2, appIntersects)
+    if canSwap:
+        if app2:
+            app2.swap(att1, appIntersects, app1)
+        if app1:
+            app1.swap(att2, appIntersects, app2)
+    return canSwap
 
-def getAttUtility(app, att) -> int:
-    return att.prefsDic[app.company] if app and att else 1000
-    # why 1000 and not infinity? because if we are comparing two options,
+def swapBoth(app1, att1, app2, att2, appIntersects):
+    assert(trySwapBoth(app1, att1, app2, att2, appIntersects))
+
+def getAttUtility(app: Optional[Appointment], att: Optional[Attendee]) -> int:
+    return att.prefsDic[app.company] + (16 * int(app.isCoffeeChat)) if app and att else 1000
+    # why 1000 and not infinity? 
+    # because if we are comparing two options,
     # sum(5, 1000) can be compared to sum(10, 1000)
     # but sum(5, inf) is the same as sum(10, inf)
     # it's important to pick a value s.t. minPref + 1000 > 2*maxPref,

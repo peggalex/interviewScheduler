@@ -6,6 +6,7 @@ import './styles/Schedule.css';
 import { CallAPI, CallAPIJson, RestfulType } from './Utilities';
 
 interface IAttendee {
+    name: string;
     commitments: IInterval[];
     prefs: {[company: string]: number};
 }
@@ -71,10 +72,12 @@ interface IRoom {
 interface ISchedule {
     attendees: {[attId: number]: IAttendee};
     companies: {[companyName: string]: {[roomName: string]: IRoom}};
-    interviewTimes: IInterval[];
+    conventionTimes: IInterval[];
     totalUtility: number;
     noAppointments: number;
-    noAttendeesChosen: number;
+    noAppointmentsNotEmpty: number;
+    noAttendeeesChosen: number;
+    varNoAppointments: number;
 }
 
 function addHours(date: Date, hours: number): Date {
@@ -84,12 +87,12 @@ function addHours(date: Date, hours: number): Date {
 }
 
 function getHeadings(schedule: ISchedule): Date[]{
-    let interviewTimes = schedule.interviewTimes.map(
+    let conventionTimes = schedule.conventionTimes.map(
         time => Interval.fromStr(time)
     );
 
     let headings = [];
-    for (let interval of interviewTimes){
+    for (let interval of conventionTimes){
         for (let t = interval.start; t < interval.end; t = addHours(t, 1)){
             headings.push(t);
         }
@@ -115,7 +118,6 @@ var ROOM_TO_COMPANY: {[room: string]: string} = {};
 var ATT_TO_INTERVIEWROOMS: {[att: number]: Set<string>} = {};
 var ATT_TO_COFFEECHATROOMS: {[att: number]: Set<string>} = {};
 var ROOM_TO_COFFEECHATAPPS: {[room: string]: Appointment[]} = {};
-var ATT_TO_BREAKS = {};
 
 var DRAGGING_APP: {
     app: string|null, 
@@ -172,11 +174,6 @@ function ScheduleCompany(
         let roomStr = el.dataset.room;
         let appStr = el.dataset.app;
 
-        /*let otherAttStr = ev.dataTransfer!.getData(attKey);
-        let otherTimeStr = ev.dataTransfer!.getData(timeKey);
-        let otherRoomStr = ev.dataTransfer!.getData(roomKey);
-        let otherAppStr = ev.dataTransfer!.getData(appKey);*/
-
         let otherAttStr = DRAGGING_APP.att;
         let otherTimeStr = DRAGGING_APP.time;
         let otherRoomStr = DRAGGING_APP.room;
@@ -230,7 +227,7 @@ function ScheduleCompany(
         });
     }
 
-    return <div id='scheduleCompany'>
+    return <><h2>Interviews</h2><div id='scheduleCompany' className="scheduleTableContainer">
         <table>
             <thead><tr>
                 <th id='roomNameCol'>Room Name</th>
@@ -356,7 +353,7 @@ function ScheduleCompany(
                 })}
             </tbody>
         </table>
-    </div>
+    </div></>
 }
 
 function ScheduleCoffeeChat(
@@ -447,7 +444,7 @@ function ScheduleCoffeeChat(
         });
     }
 
-    return <div id='scheduleCoffeeChat'>
+    return <><h2>Coffee Chats</h2><div id='scheduleCoffeeChat' className="scheduleTableContainer">
         <table>
             <thead><tr>
                 <th id='roomNameCol'>Room Name</th>
@@ -534,7 +531,7 @@ function ScheduleCoffeeChat(
                 })}
                 </tbody>
         </table>
-    </div>
+    </div></>
 }
 
 function ScheduleAttendees(
@@ -544,7 +541,7 @@ function ScheduleAttendees(
 
     let headings = getHeadings(schedule);
 
-    return <div id='scheduleAttendee'>
+    return <><h2>Attendees</h2><div id='scheduleAttendee' className="scheduleTableContainer">
         <table>
             <thead><tr>
                 <th id='roomNameCol'>Attendee</th>
@@ -594,7 +591,7 @@ function ScheduleAttendees(
                     }
                     /* as we iterate over apps, remove companies who are selected */
                     return <tr>
-                        <td>{attId}</td>
+                        <td>{attId}. {att.name}</td>
                         {headings.map(heading =><td key={+heading}>{
                             (timeToBreak[+heading] || []).map(interval => {
                                 let lengthPercent = (interval.lengthMins / 60) * 100;
@@ -655,7 +652,7 @@ function ScheduleAttendees(
                 })}
             </tbody>
         </table>
-    </div>
+    </div></>
 }
 
 function SchedulePage(){
@@ -714,19 +711,23 @@ function SchedulePage(){
             {Icons.Generate}<p>generate schedule</p>
         </button>
         {isLoading ? <div className="loader"></div> : (scheduleObj==null ? null :
-            <div>
+            <div className="col centerCross">
                 <div id='schedulesStats' className='row center'>
+                    <p>Appointments Filled: <span>{scheduleObj.noAppointmentsNotEmpty}/{scheduleObj.noAppointments}</span></p>
+                    <p>Avg No. Appointments: <span>{(scheduleObj.noAppointmentsNotEmpty/scheduleObj.noAttendeeesChosen).toFixed(2)}</span></p>
+                    <p>Var of No. Appointments: <span>{scheduleObj.varNoAppointments.toFixed(2)}</span></p>
                     <p>Average Rank: <span>{(
-                        scheduleObj.totalUtility/scheduleObj.noAttendeesChosen).toFixed(2)
+                        scheduleObj.totalUtility/scheduleObj.noAppointmentsNotEmpty).toFixed(2)
                     }</span></p>
-                    <p>Appointments Filled: <span>{scheduleObj.noAttendeesChosen}/{scheduleObj.noAppointments}</span></p>
                 </div>
                 <div id='schedules'>
                     <ScheduleCompany schedule={scheduleObj} swapFunc={swap}/>
                     <ScheduleCoffeeChat schedule={scheduleObj} swapFunc={swap}/>
                     <ScheduleAttendees schedule={scheduleObj}/>
                 </div>
-                <button onClick={writeSchedule}>write schedule</button>
+                <button id="writeScheduleButt" className='row centerAll' onClick={writeSchedule}>
+                    {Icons.Edit}<p>write schedule</p>
+                </button>
             </div>
         )}
     </div>

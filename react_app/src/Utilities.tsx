@@ -129,10 +129,10 @@ export class Table{
     }
 }
 
-const interviewTimesTable: Table = new Table(
-    'Interview Times',
-    'InterviewTimes',
-    'This is a list of valid times for interviews.',
+const conventionTimesTable: Table = new Table(
+    'Convention Times',
+    'ConventionTimes',
+    'This is a list of valid times for the convention.',
     [
         {
             name: 'Start Time',
@@ -152,23 +152,25 @@ const companyNameCol: IColumn = {
     type: ColumnType.STRING
 }
 
-const companiesTable: Table = new Table(
-    'Companies',
-    'CompanyNames',
-    'This is a list of companies participating.',
-    [companyNameCol],
-    true
-);
-
 const roomNameCol: IColumn = {
     name: 'Room Name',
     type: ColumnType.STRING
 }
 
-const roomsTable: Table = new Table(
+
+const companyRoomsTable: Table = new Table(
     'Company Rooms',
-    'RoomNames',
-    'This is a list of company rooms.',
+    'CompanyRooms',
+    'This is a list of companies participating, and their rooms.',
+    [companyNameCol, roomNameCol],
+    true
+);
+
+
+const roomInterviewsTable: Table = new Table(
+    'Room Interviews',
+    'RoomInterviews',
+    'This is a list of rooms with interviews.',
     [companyNameCol, roomNameCol, {
         name: 'Length',
         type: ColumnType.INT,
@@ -184,7 +186,7 @@ const roomsTable: Table = new Table(
         desc: 'must be greater than start time'
     }],
     true,
-    [companiesTable, interviewTimesTable]
+    [conventionTimesTable, companyRoomsTable]
 );
 
 const roomBreaksTable: Table = new Table(
@@ -204,7 +206,7 @@ const roomBreaksTable: Table = new Table(
         }
     ],
     false,
-    [interviewTimesTable, roomsTable]
+    [companyRoomsTable]
 );
 
 const attendeeCol: IColumn = {
@@ -216,7 +218,10 @@ const attendeeTable: Table = new Table(
     'Attendees',
     'AttendeeNames',
     'This is a list of rooms belonging to a company.',
-    [attendeeCol],
+    [attendeeCol, {
+        name: "Attendee Name",
+        type: ColumnType.STRING
+    }],
     true
 );
 
@@ -235,7 +240,7 @@ const attendeeBreaksTable: Table = new Table(
         desc: 'must be greater than start time'
     }],
     false,
-    [interviewTimesTable, attendeeTable]
+    [conventionTimesTable, attendeeTable]
 );
 
 const attendeePrefsTable: Table = new Table(
@@ -249,16 +254,16 @@ const attendeePrefsTable: Table = new Table(
         desc: 'must be positive, the smaller the better'
     }],
     true,
-    [attendeeTable]
+    [attendeeTable, companyRoomsTable]
 );
 
-const roomCandidatesTable: Table = new Table(
-    'Room Candidates',
-    'RoomCandidates',
-    'This is a list of rooms belonging to a company.',
+const interviewCandidatesTable: Table = new Table(
+    'Interview Candidates',
+    'InterviewCandidates',
+    'This is a list of interview candidates.',
     [roomNameCol, attendeeCol],
     true,
-    [roomsTable, attendeeTable]
+    [companyRoomsTable, roomInterviewsTable, attendeeTable]
 );
 
 const coffeeChatsTable: Table = new Table(
@@ -281,7 +286,7 @@ const coffeeChatsTable: Table = new Table(
         desc: 'must be greater than start time'
     }],
     false,
-    [interviewTimesTable, roomsTable]
+    [conventionTimesTable, companyRoomsTable]
 );
 
 const coffeeChatsCandidatesTable: Table = new Table(
@@ -290,5 +295,5 @@ const coffeeChatsCandidatesTable: Table = new Table(
     'This is a list of room coffee chats candidates.',
     [roomNameCol, attendeeCol],
     false,
-    [coffeeChatsTable]
+    [attendeeTable, companyRoomsTable, coffeeChatsTable]
 );

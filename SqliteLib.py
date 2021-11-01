@@ -189,7 +189,7 @@ class SqliteDB():
         self.Execute(table.GetInsertStr(columnValues))
 
     @staticmethod
-    def Q(columns: list[Column], table: Table, columnValues: dict[Column, list] = {}, orderBys: list[Column] = []):
+    def Q(columns: list[Column], table: Table, columnValues: dict[Column, Any] = {}, orderBys: list[Column] = []):
         table.CheckColumns(set(columns) | set(columnValues.keys()))
 
         query = f"""

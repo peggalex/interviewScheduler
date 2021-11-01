@@ -49,6 +49,10 @@ button:hover, .clickable:hover {
   cursor: pointer;
 }
 
+button:active {
+  opacity: 0.8;
+}
+
 .disabled:hover{
   cursor: not-allowed !important;
 }

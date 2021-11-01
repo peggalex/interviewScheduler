@@ -1,4 +1,4 @@
-from Schema import ATTENDEEBREAKS_TABLE, ATTENDEEPREFS_TABLE, ATTENDEES_TABLE, COFFEECHAT_TABLE, COFFEECHATCANDIDATES_TABLE, COMPANY_TABLE, INTERVIEWTIME_TABLE, ROOM_TABLE, ROOMBREAKS_TABLE, ROOMCANDIDATES_TABLE, GetInterviewTimes
+from Schema import ATTENDEEBREAKS_TABLE, ATTENDEEPREFS_TABLE, ATTENDEES_TABLE, COFFEECHAT_TABLE, COFFEECHATCANDIDATES_TABLE, COMPANY_TABLE, COMPANYROOM_TABLE, CONVENTIONTIME_TABLE, INTERVIEWCANDIDATES_TABLE, ROOMBREAKS_TABLE, ROOMINTERVIEW_TABLE, GetCompanyRooms, GetConventionTimes
 import traceback
 import logging as notFlaskLogging
 from datetime import datetime
@@ -15,14 +15,13 @@ from sqlite3 import OperationalError as sqlite3Error
 from parseTable import (
     readCoffeeChat,
     readCoffeeChatCandidates,
-    readInterviewTimes, 
-    readCompanyNames,
-    readRoomNames,
+    readConventionTimes,
+    readInterviewCandidates,
+    readRoomInterviews,
     readRoomBreaks,
     readAttendeeNames,
     readAttendeeBreaks,
     readAttendeePrefs,
-    readRoomCandidates,
     setAttendeeAndCompanies,  
 )
 
@@ -99,33 +98,33 @@ def getTableReponse(table: Table) -> ResponseType:
 
 
 # interview times
-@app.route('/getInterviewTimes', methods=['GET'])
-def getInterviewTimesHandler() -> ResponseType:
-    return getTableReponse(INTERVIEWTIME_TABLE)
+@app.route('/getConventionTimes', methods=['GET'])
+def getConventionTimesHandler() -> ResponseType:
+    return getTableReponse(CONVENTIONTIME_TABLE)
 
-@app.route('/setInterviewTimes', methods=['POST'])
-def setInterviewTimesHandler() -> ResponseType:
-    return setTable(request, readInterviewTimes, getInterviewTimesHandler)
+@app.route('/setConventionTimes', methods=['POST'])
+def setConventionTimesHandler() -> ResponseType:
+    return setTable(request, readConventionTimes, getConventionTimesHandler)
 
 
 # company names
-@app.route('/getCompanyNames', methods=['GET'])
-def getCompanyNamesHandler() -> ResponseType:
-    return getTableReponse(COMPANY_TABLE)
+@app.route('/getCompanyRooms', methods=['GET'])
+def getCompanyRoomsHandler() -> ResponseType:
+    return getTableReponse(COMPANYROOM_TABLE)
 
-@app.route('/setCompanyNames', methods=['POST'])
+@app.route('/setCompanyRooms', methods=['POST'])
 def setCompanyNamesHandler() -> ResponseType:
-    return setTable(request, readCompanyNames, getCompanyNamesHandler)
+    return setTable(request, GetCompanyRooms, getCompanyRoomsHandler)
 
 
 # room names
-@app.route('/getRoomNames', methods=['GET'])
-def getRoomNamesHandler() -> ResponseType:
-    return getTableReponse(ROOM_TABLE)
+@app.route('/getRoomInterviews', methods=['GET'])
+def getRoomInterviewsHandler() -> ResponseType:
+    return getTableReponse(ROOMINTERVIEW_TABLE)
 
-@app.route('/setRoomNames', methods=['POST'])
-def setRoomNamesHandler() -> ResponseType:
-    return setTable(request, readRoomNames, getRoomNamesHandler)
+@app.route('/setRoomInterviews', methods=['POST'])
+def setRoomInterviewsHandler() -> ResponseType:
+    return setTable(request, readRoomInterviews, getRoomInterviewsHandler)
 
 
 # room breaks
@@ -169,13 +168,13 @@ def setAttendeePrefsHandler() -> ResponseType:
 
 
 # room candidates
-@app.route('/getRoomCandidates', methods=['GET'])
-def getRoomCandidatesHandler() -> ResponseType:
-    return getTableReponse(ROOMCANDIDATES_TABLE)
+@app.route('/getInterviewCandidates', methods=['GET'])
+def getInterviewCandidatesHandler() -> ResponseType:
+    return getTableReponse(INTERVIEWCANDIDATES_TABLE)
 
-@app.route('/setRoomCandidates', methods=['POST'])
-def setRoomCandidatesHandler() -> ResponseType:
-    return setTable(request, readRoomCandidates, getRoomCandidatesHandler)
+@app.route('/setInterviewCandidates', methods=['POST'])
+def setInterviewCandidatesHandler() -> ResponseType:
+    return setTable(request, readInterviewCandidates, getInterviewCandidatesHandler)
 
 
 # coffee chats
@@ -213,7 +212,7 @@ def generateScheduleHandler() -> ResponseType:
             )
 
             return {
-                'data': run(companies,attendees,GetInterviewTimes(cursor))
+                'data': run(companies,attendees,GetConventionTimes(cursor))
             }, 200
                     
         except Exception as e:

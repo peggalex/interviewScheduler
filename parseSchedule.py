@@ -10,7 +10,7 @@ def parseJsonSchedule(data: dict) -> tuple[
 
     attendeesJson, companiesJson = data['attendees'], data['companies']
 
-    interviewTimes = [TimeInterval.fromStr(t['start'], t['end']) for t in data['interviewTimes']]
+    conventionTimes = [TimeInterval.fromStr(t['start'], t['end']) for t in data['conventionTimes']]
 
     companyNameToCompany: dict[str, Company] = {}
     for companyName in companiesJson.keys():
@@ -24,7 +24,7 @@ def parseJsonSchedule(data: dict) -> tuple[
             for companyName, pref in attendeeJson['prefs'].items()
         ]
         commitments = [TimeInterval.fromStr(c['start'], c['end']) for c in attendeeJson['commitments']]
-        attendeeIdToAttendee[attId] = Attendee(attId, prefs, commitments)
+        attendeeIdToAttendee[attId] = Attendee(attId, attendeeJson['name'], prefs, commitments)
 
     for companyName, company in companyNameToCompany.items():
         for roomName, roomJson in companiesJson[companyName].items():
@@ -64,7 +64,7 @@ def parseJsonSchedule(data: dict) -> tuple[
     return (
         list(companyNameToCompany.values()),
         list(attendeeIdToAttendee.values()), 
-        interviewTimes
+        conventionTimes
     )
 
 def parseJsonSwapSchedule(data: dict) -> tuple[
@@ -77,7 +77,7 @@ def parseJsonSwapSchedule(data: dict) -> tuple[
         Optional[Attendee]
     ]:
 
-    companies, attendees, interviewTimes = parseJsonSchedule(data)
+    companies, attendees, conventionTimes = parseJsonSchedule(data)
 
     attendeeIdToAttendee = {att.uid:att for att in attendees}
     companyNameToCompany = {c.name:c for c in companies}
@@ -128,7 +128,7 @@ def parseJsonSwapSchedule(data: dict) -> tuple[
     return (
         companies,
         attendees,
-        interviewTimes,
+        conventionTimes,
         app1,
         att1,
         app2,

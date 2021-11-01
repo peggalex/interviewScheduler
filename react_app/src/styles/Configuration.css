@@ -76,6 +76,10 @@
     stroke-width: .2rem;
 }
 
+#htmlUpload:hover svg .uploadArrow {
+    animation: moveUp 0.35s ease-out;
+}
+
 #htmlUpload>p {
     font-weight: 400;
     margin: 0.35rem;
@@ -134,3 +138,8 @@ body:last-child {
     margin: 1rem 0;
     width: 90%;
 }
+
+@keyframes moveUp {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-0.25rem); opacity: 0.75; }
+  }

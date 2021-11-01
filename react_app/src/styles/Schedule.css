@@ -4,10 +4,6 @@
     font-size: 0.8rem;
 }
 
-#scheduleAttendee{
-    margin-top: 1rem;
-}
-
 #schedules {
     margin: 1rem;
     width: 95vw;
@@ -172,11 +168,11 @@ tr.fadeRoom {
     font-weight: bold;
 }
 
-#generateButt {
+#generateButt, #writeScheduleButt {
     padding: 1rem 3rem;
     background-color: var(--grey200);
     border-radius: 0.4rem;
-    color: var(--grey800);
+    color: var(--grey700);
     border: none;
     font-weight: bold;
     font-size: 1rem;
@@ -186,15 +182,34 @@ tr.fadeRoom {
     animation: ease-out 0.5s spinHalf;
 }
 
-#generateButt > p {
+#writeScheduleButt:hover .editPen {
+    transform-origin: 60% 30%;
+    animation: ease-in-out 0.4s shakePen;
+}
+
+@keyframes shakePen {
+    0% { transform: rotate(0deg); }
+    25% { transform: rotate(10deg); }
+    75% { transform: rotate(-10deg); }
+    100% { transform: rotate(0deg); }
+  }
+
+#generateButt > p, #writeScheduleButt > p {
     margin: 0;
     margin-top: -0.2rem;
 }
 
+#writeScheduleButt > svg {
+    stroke-width: .15rem;
+}
+
 #generateButt > svg {
+    stroke-width: .2rem;
+}
+
+#generateButt > svg, #writeScheduleButt > svg {
     width: 1rem;
     margin-right: .5rem;
-    stroke-width: .2rem;
     color: var(--grey600);
 }
 
@@ -252,6 +267,17 @@ p.ccRoomDate {
     font-size: 0.6rem;
     padding-top: 0.25rem;
     color: var(--grey500);
+}
+
+.scheduleTableContainer + .scheduleTableContainer {
+    margin-top: 2rem;
+}
+
+#schedules > h2{
+    width: 100%;
+    text-align: center;
+    margin: 1rem 0rem 0.5rem 0;
+    font-size: 2rem;
 }
 
 @keyframes spinHalf {
