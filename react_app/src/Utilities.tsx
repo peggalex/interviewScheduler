@@ -171,7 +171,7 @@ const roomInterviewsTable: Table = new Table(
     'Room Interviews',
     'RoomInterviews',
     'This is a list of rooms with interviews.',
-    [companyNameCol, roomNameCol, {
+    [roomNameCol, {
         name: 'Length',
         type: ColumnType.INT,
         desc: 'in minutes'

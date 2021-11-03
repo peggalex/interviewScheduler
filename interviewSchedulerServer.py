@@ -4,7 +4,6 @@ import logging as notFlaskLogging
 from datetime import datetime
 from flask import *
 from typing import Callable, Any
-import webbrowser
 
 from serverUtilities import ValidationException
 from os import path
@@ -78,7 +77,7 @@ def setTable(request, setFunc: Callable[[str, SqliteDB], None], getFunc: Callabl
             )
 
             #doc = quopri.decodestring(file.read()).decode("latin")
-            doc = file.read().decode('ascii').strip()
+            doc = file.read().decode('utf-8').strip()
             setFunc(doc, cursor)
             #return {'data': [line.split(',') for line in doc.split('\n')][1:]}, 200
             return getFunc()
@@ -274,6 +273,3 @@ if __name__=="__main__":
         debug=True, 
         port=4000
     )
-
-    webbrowser.open_new(url)
-
