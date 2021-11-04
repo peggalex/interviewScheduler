@@ -63,7 +63,7 @@
 
 #htmlUpload > div > p{
     margin: 0;
-    font-weight: bold;
+    font-weight: 500;
 }
 
 .tableUpload input[type='file']{

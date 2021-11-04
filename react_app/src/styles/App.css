@@ -41,7 +41,7 @@ h3 {
 }
 
 body, button {
-  font-family: 'Inter';
+  /*font-family: 'Inter';*/
   color: var(--grey700);
 }
 
@@ -122,6 +122,10 @@ button:active, input:active {
 
 #navButtons {
   padding: 1rem;
+}
+
+b{
+  font-weight: 500;
 }
 
 #navButtons > button {

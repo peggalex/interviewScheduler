@@ -705,26 +705,32 @@ function SchedulePage(){
         <button id='generateButt' className='row centerAll' onClick={gen}>
             {Icons.Generate}<p>generate schedule</p>
         </button>
-        {isLoading ? <div className="loader"></div> : (scheduleObj==null ? null :
-            <div className="col centerCross">
-                <div id='schedulesStats' className='row center'>
-                    <p>Appointments Filled: <span>{scheduleObj.noAppointmentsNotEmpty}/{scheduleObj.noAppointments}</span></p>
-                    <p>Avg No. Appointments: <span>{(scheduleObj.noAppointmentsNotEmpty/scheduleObj.noAttendeeesChosen).toFixed(2)}</span></p>
-                    <p>Var of No. Appointments: <span>{scheduleObj.varNoAppointments.toFixed(2)}</span></p>
-                    <p>Average Rank: <span>{(
-                        scheduleObj.totalUtility/scheduleObj.noAppointmentsNotEmpty).toFixed(2)
-                    }</span></p>
-                </div>
-                <div id='schedules'>
-                    <ScheduleCompany schedule={scheduleObj} swapFunc={swap}/>
-                    <ScheduleCoffeeChat schedule={scheduleObj} swapFunc={swap}/>
-                    <ScheduleAttendees schedule={scheduleObj}/>
-                </div>
-                <button id="writeScheduleButt" className='row centerAll' onClick={writeSchedule}>
-                    {Icons.Edit}<p>write schedule</p>
-                </button>
-            </div>
-        )}
+        <div id='schedContainer' className="col centerCross">
+            {isLoading ? <div id="schedLoader" className="row centerAll"><div className="loader"></div></div> : null}
+            {(scheduleObj==null ? null : <>
+                    <div id='schedulesStats' className='row center'>
+                        <p>Appointments Filled: <span>{
+                            scheduleObj.noAppointmentsNotEmpty}/{scheduleObj.noAppointments
+                        }</span></p>
+                        <p>Avg No. Appointments: <span>{
+                            (scheduleObj.noAppointmentsNotEmpty/scheduleObj.noAttendeeesChosen).toFixed(2)
+                        }</span></p>
+                        <p>Var of No. Appointments: <span>{scheduleObj.varNoAppointments.toFixed(2)}</span></p>
+                        <p>Average Rank: <span>{(
+                            scheduleObj.totalUtility/scheduleObj.noAppointmentsNotEmpty).toFixed(2)
+                        }</span></p>
+                    </div>
+                    <div id='schedules'>
+                        <ScheduleCompany schedule={scheduleObj} swapFunc={swap}/>
+                        <ScheduleCoffeeChat schedule={scheduleObj} swapFunc={swap}/>
+                        <ScheduleAttendees schedule={scheduleObj}/>
+                    </div>
+                    <button id="writeScheduleButt" className='row centerAll' onClick={writeSchedule}>
+                        {Icons.Edit}<p>write schedule</p>
+                    </button>
+                </>
+            )}
+        </div>
     </div>
 }
 

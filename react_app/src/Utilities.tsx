@@ -1,3 +1,4 @@
+import { rejects } from 'assert';
 import React from 'react';
 
 export const EnumArray = (e: any): string[] => 
@@ -10,16 +11,25 @@ export enum RestfulType {
     PUT
 }
 
-export async function CallAPIToJson(
+export function CallAPIToJson(
     url: string, 
     method: RestfulType, 
     body: any = null,
     headers: any = {}
 ): Promise<any> {
-    return (await CallAPI(url, method, body, headers)).json();
+    return new Promise((resolve, reject) => 
+        CallAPI(url, method, body, headers)
+            .then(async (response) => {
+                if (!response.ok){
+                    reject(await response.json());
+                } else {
+                    resolve(await response.json());
+                }
+            })
+    );
 }
 
-export async function CallAPIJsonToDownloadCSV(
+export function CallAPIJsonToDownloadCSV(
     url: string, 
     method: RestfulType, 
     json: any = null,
@@ -30,27 +40,27 @@ export async function CallAPIJsonToDownloadCSV(
             'Content-Type': 'application/json'
         })
         .then(async (res) => {
-            
-            let mimetype = res.headers.get('Content-Type')!;
-            let filename = /.+filename="([^"]+)"/g.exec(
-                res.headers.get('Content-Disposition')!
-            )![1];
+            if (!res.ok){
+                reject(alert(await res.json()))
+            } else {
+                let mimetype = res.headers.get('Content-Type')!;
+                let filename = /.+filename="([^"]+)"/g.exec(
+                    res.headers.get('Content-Disposition')!
+                )![1];
 
-            download(
-                mimetype, 
-                await res.text(),
-                filename
-            );
-            resolve();
+                download(
+                    mimetype, 
+                    await res.text(),
+                    filename
+                );
+                resolve();
+            }
         })
-        .catch((res) => {
-            reject(alert(res.json()));
-        });
     });
 
 }
 
-export async function CallAPI(
+export function CallAPI(
     url: string, 
     method: RestfulType, 
     body: any = null,
