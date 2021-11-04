@@ -76,7 +76,7 @@
     stroke-width: .2rem;
 }
 
-#htmlUpload:hover svg .uploadArrow {
+#htmlUpload:not(:disabled):hover svg .uploadArrow {
     animation: moveUp 0.35s ease-out;
 }
 

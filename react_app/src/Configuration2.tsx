@@ -1,7 +1,7 @@
 import React from 'react';
 import Icons from './Icons';
 import './styles/Configuration.css';
-import { CallAPI, ColumnType, ColumnTypeToStr, IColumn, RestfulType, Table, TableData, tables } from './Utilities';
+import { CallAPIToJson, ColumnType, ColumnTypeToStr, IColumn, RestfulType, Table, TableData, tables } from './Utilities';
 
 function FormatColumn(col: string, colType: ColumnType){
     switch (colType){
@@ -43,7 +43,7 @@ function FileUpload({table, tableData, updateTableData}: {table: Table, tableDat
         
         setIsLoading(true);
         
-        CallAPI(
+        CallAPIToJson(
             `/set${table.endpoint}`, 
             RestfulType.POST, data
         ).then(({data}: {data: string[][]}) => {
@@ -71,6 +71,11 @@ function FileUpload({table, tableData, updateTableData}: {table: Table, tableDat
             setFileName("");      
         }
     }
+
+    React.useEffect(
+        ()=>{setFileName("")}, 
+        [JSON.stringify(tableData)]
+    )
 
     let buttWorks = table.isDependenciesLoaded(tableData);
 
@@ -123,8 +128,8 @@ function TableConfig(
 ){
     const [values, setValues] = React.useState(table.getValues(tableData));
 
-    const shouldExpand = () => table.isDependenciesLoaded(tableData);
-    const [isExpanded, setIsExpanded] = React.useState(shouldExpand());
+    const shouldExpand = (t: Table) => t.isDependenciesLoaded(tableData);
+    const [isExpanded, setIsExpanded] = React.useState(shouldExpand(table));
 
     const elRef = React.useRef(null as HTMLDivElement|null);
     React.useEffect(() => {
@@ -136,7 +141,10 @@ function TableConfig(
     }, [isSelected]);
 
     React.useEffect(() => {
-        setIsExpanded(shouldExpand());
+        setIsExpanded(shouldExpand(table));
+    }, [shouldExpand(table)]);
+
+    React.useEffect(() => {
         setValues(table.getValues(tableData));
     }, [JSON.stringify(table.getValues(tableData))]);
 

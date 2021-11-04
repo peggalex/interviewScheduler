@@ -10,34 +10,66 @@ export enum RestfulType {
     PUT
 }
 
-export async function CallAPI(
+export async function CallAPIToJson(
     url: string, 
     method: RestfulType, 
     body: any = null,
     headers: any = {}
 ): Promise<any> {
+    return (await CallAPI(url, method, body, headers)).json();
+}
+
+export async function CallAPIJsonToDownloadCSV(
+    url: string, 
+    method: RestfulType, 
+    json: any = null,
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        CallAPI(url, method, JSON.stringify(json), {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        })
+        .then(async (res) => {
+            
+            let mimetype = res.headers.get('Content-Type')!;
+            let filename = /.+filename="([^"]+)"/g.exec(
+                res.headers.get('Content-Disposition')!
+            )![1];
+
+            download(
+                mimetype, 
+                await res.text(),
+                filename
+            );
+            resolve();
+        })
+        .catch((res) => {
+            reject(alert(res.json()));
+        });
+    });
+
+}
+
+export async function CallAPI(
+    url: string, 
+    method: RestfulType, 
+    body: any = null,
+    headers: any = {}
+): Promise<Response> {
 	url = url.replace(/[ \t\n]/g, ''); // get rid of empty spaces and newlines
     var fullUrl = `${process.env.PUBLIC_URL || './'}/${url}`;
-	return new Promise(async (resolve, reject) => {
-        fetch(fullUrl, {
-            method: RestfulType[method],
-            body: body,
-            headers: headers
-        }).then(async (response) => {
-            if (!response.ok){
-                reject(await response.json());
-            } else {
-                resolve(await response.json());
-            }
-        });
+	return fetch(fullUrl, {
+        method: RestfulType[method],
+        body: body,
+        headers: headers
 	});
 }
 
-export const CallAPIJson = async (
+export const CallAPIJsonToJson = async (
     url: string,
     method: RestfulType,
     body: Object
-) => CallAPI(
+) => CallAPIToJson(
     url, 
     method, 
     JSON.stringify(body),
@@ -47,6 +79,12 @@ export const CallAPIJson = async (
     }
 );
 
+function download(mimetype: string, data: string, filename: string) {
+    const link = document.createElement("a");
+    link.href = `data:${mimetype},${encodeURIComponent(data)}`;
+    link.download = filename;
+    link.click();
+}
 
 //https://stackoverflow.com/questions/1322732/convert-seconds-to-hh-mm-ss-with-javascript
 export const secsToHMS = (secs: number): string => {

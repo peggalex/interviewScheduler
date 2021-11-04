@@ -1,7 +1,7 @@
 import React from 'react';
 import Icons from './Icons';
 import './styles/Configuration.css';
-import { CallAPI, RestfulType } from './Utilities';
+import { CallAPIToJson, RestfulType } from './Utilities';
 
 enum ColumnType {
     STRING,
@@ -253,7 +253,7 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
         
         setIsLoading(true);
         
-        CallAPI(`/set${table.endpoint}`, RestfulType.POST, data)
+        CallAPIToJson(`/set${table.endpoint}`, RestfulType.POST, data)
         .then(({data}: {data: string[][]}) => {
             table.addValues(data);
             for (let otherTable of tables){
@@ -356,7 +356,7 @@ function TableConfig(
     }, [isSelected]);
 
     let updateData = () => {
-        CallAPI(`/get${table.endpoint}`, RestfulType.GET)
+        CallAPIToJson(`/get${table.endpoint}`, RestfulType.GET)
         .then(({data}: {data: string[][]}) => {
             table.addValues(data);
             updateTableIsLoaded();

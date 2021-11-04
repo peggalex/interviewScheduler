@@ -3,7 +3,7 @@ import React from 'react';
 import internal from 'stream';
 import Icons from './Icons';
 import './styles/Schedule.css';
-import { CallAPI, CallAPIJson, RestfulType } from './Utilities';
+import { CallAPIToJson, CallAPIJsonToJson, RestfulType, CallAPIJsonToDownloadCSV } from './Utilities';
 
 interface IAttendee {
     name: string;
@@ -662,7 +662,7 @@ function SchedulePage(){
 
 	let gen = () => {
         setIsLoading(true);
-		CallAPI(
+		CallAPIToJson(
             '/generateSchedule', 
             RestfulType.GET
         ).then(({data}: {data: ISchedule}) => {
@@ -675,7 +675,7 @@ function SchedulePage(){
 
 	let swap = (isCoffeeChat: boolean, app1?: Object, att1?: number, app2?: Object, att2?: number) => {
         setIsLoading(true);
-		CallAPIJson('/swapSchedule', RestfulType.POST, {
+		CallAPIJsonToJson('/swapSchedule', RestfulType.POST, {
             'data': {
                 ...(scheduleObj as Object),
                 'app1': app1 ?? null,
@@ -694,16 +694,11 @@ function SchedulePage(){
 
 	let writeSchedule = () => {
         setIsLoading(true);
-		CallAPIJson(
+		CallAPIJsonToDownloadCSV(
             '/writeSchedule', 
             RestfulType.POST, 
             {'data': scheduleObj}
-        ).then(({data: {filename}}: {data: {filename: string}}) => {
-            alert(`written to file: '${filename}' in your app directory`);
-		}).catch((res)=>{
-			console.log("res", res);
-			alert(res["error"]);
-		}).finally(()=>setIsLoading(false));
+        ).finally(()=>setIsLoading(false));
 	}
 
     return <div id='schedulePage' className='col centerCross'>

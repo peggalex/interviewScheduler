@@ -14,6 +14,7 @@ from sqlite3 import OperationalError as sqlite3Error
 from parseTable import (
     readCoffeeChat,
     readCoffeeChatCandidates,
+    readCompanyRoomNames,
     readConventionTimes,
     readInterviewCandidates,
     readRoomInterviews,
@@ -113,7 +114,7 @@ def getCompanyRoomsHandler() -> ResponseType:
 
 @app.route('/setCompanyRooms', methods=['POST'])
 def setCompanyNamesHandler() -> ResponseType:
-    return setTable(request, GetCompanyRooms, getCompanyRoomsHandler)
+    return setTable(request, readCompanyRoomNames, getCompanyRoomsHandler)
 
 
 # room names
@@ -227,28 +228,18 @@ def swapScheduleHandler() -> ResponseType:
             return handleException(cursor, e)
 
 @app.route('/writeSchedule', methods=['POST'])
-def writeScheduleHandler() -> ResponseType:
+def writeScheduleHandler() -> Any:
     with SqliteDB() as cursor:
         try:
             data = request.get_json()['data']
             companies, atts, interviewTimes = parseJsonSchedule(data)
             filename = f"Interview Schedule {datetime.now().isoformat()[:-7].replace(':', '.')}.csv"
             writeSchedule(filename, companies)
-            return {'data': {'filename': filename}}, 200
+            return send_file(filename, mimetype='text/csv')
         except Exception as e:
             return handleException(cursor, e)
 
-
-@app.route('/images/<filename>')
-def getImagesEndpoint(filename) -> ResponseType:
-
-    return send_from_directory(
-        path.join(app.root_path, 'react_app/build'),
-        filename
-    )
-
 @app.route('/')
-@app.errorhandler(404)   
 def index(e = None) -> ResponseType:
     return render_template('index.html')
 

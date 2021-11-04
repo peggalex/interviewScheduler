@@ -5,7 +5,7 @@ import Icons from './Icons';
 import './styles/App.css';
 import './styles/Fonts.css';
 import './styles/tailwindColours.css';
-import { CallAPI, RestfulType, Table, TableData, tables } from './Utilities';
+import { CallAPIToJson, RestfulType, Table, TableData, tables } from './Utilities';
 
 function App(){
 
@@ -19,7 +19,7 @@ function App(){
     let [tableData, setTableData] = React.useState(tableDataInit);
 
     async function getData(table: Table): Promise<string[][]>{
-        return CallAPI(`/get${table.endpoint}`, RestfulType.GET)
+        return CallAPIToJson(`/get${table.endpoint}`, RestfulType.GET)
             .then(({data}: {data: string[][]}) => data)
             .catch((res)=>{
                 console.log("res", res);
