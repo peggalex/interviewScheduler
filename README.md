@@ -2,6 +2,7 @@
 
 ## Installation instructions:
 * Install docker
+* navigate to the app folder in a CLI (terminal for MacOS, command prompt for Windows)
 * run `docker build --tag sched .`
 
 ## Startup instructions:
