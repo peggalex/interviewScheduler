@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS coffeeChatCandidate(
 	timestamp INTEGER  NOT NULL,
 	roomName VARCHAR(50)  NOT NULL,
 	attendeeID INTEGER  NOT NULL,
+	preference INTEGER  NOT NULL,
 	PRIMARY KEY (roomName, attendeeID),
 	FOREIGN KEY (roomName) REFERENCES companyRoom(roomName) ON DELETE CASCADE,
 	FOREIGN KEY (attendeeID) REFERENCES attendee(attendeeID) ON DELETE CASCADE

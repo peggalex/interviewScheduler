@@ -1,26 +1,7 @@
 import React from 'react';
 import Icons from './Icons';
 import './styles/Configuration.css';
-import { CallAPIToJson, RestfulType } from './Utilities';
-
-enum ColumnType {
-    STRING,
-    INT,
-    DATETIME
-}
-
-function ColumnTypeToStr(colType: ColumnType){
-    switch (colType){
-        case ColumnType.STRING:
-            return 'string';
-        case ColumnType.INT:
-            return 'integer';
-        case ColumnType.DATETIME:
-            return 'datetime';
-        default:
-            throw Error(`unhandled col type for ColumnTypeToStr(): ${ColumnType}`);
-    }
-}
+import { CallAPIToJson, ColumnType, ColumnTypeToStr, IColumn, RestfulType, Table, TableData, tables } from './Utilities';
 
 function FormatColumn(col: string, colType: ColumnType){
     switch (colType){
@@ -37,198 +18,7 @@ function FormatColumn(col: string, colType: ColumnType){
     }
 }
 
-interface IColumn{
-    name: string;
-    type: ColumnType;
-    desc?: string;
-    table?: Table;
-}
-
-class Table{
-    name: string;
-    endpoint: string;
-    desc: string;
-    columns: IColumn[];
-    values: string[][];
-    dependencies: Table[];
-
-    constructor(name: string, endpoint: string, desc: string, columns: IColumn[], dependencies?: Table[]){
-        this.name = name;
-        this.endpoint = endpoint;
-        this.desc = desc;
-        this.dependencies = dependencies ?? [];
-        this.columns = [];
-        this.values = [];
-        for (let col of columns){
-            this.addColumn(col);
-        }
-    }
-
-    addColumn(col: IColumn){
-        this.columns.push(col);
-        col.table = col.table ?? this; 
-        /* if this col doesn't have a table, add this one as their table */
-        return this;
-    }
-
-    isDependenciesLoaded(){
-        return this.dependencies.every(t => t.isLoaded);
-    }
-
-    isLoaded(){
-        return 0 < this.values.length;
-    }
-
-    empty(){
-        this.values = [];
-    }
-
-    addValues(values: string[][]){
-        if (values.some(r => r.length != this.columns.length)){
-            alert('incorrect length of return table');
-            throw Error('incorrect length of return table');
-        }
-        this.values = values;
-    }
-}
-
-const interviewTimesTable: Table = new Table(
-    'Interview Times',
-    'InterviewTimes',
-    'This is a list of valid times for interviews.',
-    [
-        {
-            name: 'Start Time',
-            type: ColumnType.DATETIME
-        },
-        {
-            name: 'End Time',
-            type: ColumnType.DATETIME,
-            desc: 'must be greater than start time'
-        },
-    ]
-);
-
-const companyNameCol: IColumn = {
-    name: 'Company Name',
-    type: ColumnType.STRING
-}
-
-const companiesTable: Table = new Table(
-    'Companies',
-    'CompanyNames',
-    'This is a list of companies participating.',
-    [companyNameCol]
-);
-
-const roomNameCol: IColumn = {
-    name: 'Room Name',
-    type: ColumnType.STRING
-}
-
-const roomsTable: Table = new Table(
-    'Company Rooms',
-    'RoomNames',
-    'This is a list of company rooms.',
-    [companyNameCol, roomNameCol, {
-        name: 'Length',
-        type: ColumnType.INT,
-        desc: 'in minutes'
-    },    
-    {
-        name: 'Start Time',
-        type: ColumnType.DATETIME
-    },
-    {
-        name: 'End Time',
-        type: ColumnType.DATETIME,
-        desc: 'must be greater than start time'
-    }],
-    [companiesTable, interviewTimesTable]
-);
-
-const roomBreaksTable: Table = new Table(
-    'Room Breaks',
-    'RoomBreaks',
-    'This is a list of rooms belonging to a company.',
-    [
-        roomNameCol,
-        {
-            name: 'Start Time',
-            type: ColumnType.DATETIME
-        },
-        {
-            name: 'End Time',
-            type: ColumnType.DATETIME,
-            desc: 'must be greater than start time'
-        }
-    ],
-    [interviewTimesTable, roomsTable]
-);
-
-const attendeeCol: IColumn = {
-    name: 'Attendee ID',
-    type: ColumnType.STRING
-}
-
-const attendeeTable: Table = new Table(
-    'Attendees',
-    'AttendeeNames',
-    'This is a list of rooms belonging to a company.',
-    [attendeeCol]
-);
-
-const attendeeBreaksTable: Table = new Table(
-    'Attendee Breaks',
-    'AttendeeBreaks',
-    'This is a list of rooms belonging to a company.',
-    [attendeeCol,
-    {
-        name: 'Start Time',
-        type: ColumnType.DATETIME
-    },
-    {
-        name: 'End Time',
-        type: ColumnType.DATETIME,
-        desc: 'must be greater than start time'
-    }],
-    [interviewTimesTable, attendeeTable]
-);
-
-const attendeePrefsTable: Table = new Table(
-    'Attendee Preferences',
-    'AttendeePrefs',
-    'This is a list of rooms belonging to a company.',
-    [attendeeCol, companyNameCol,
-    {
-        name: 'Preference',
-        type: ColumnType.INT,
-        desc: 'the larger the better'
-    }],
-    [attendeeTable]
-);
-
-const roomCandidatesTable: Table = new Table(
-    'Room Candidates',
-    'RoomCandidates',
-    'This is a list of rooms belonging to a company.',
-    [roomNameCol, attendeeCol],
-    [roomsTable, attendeeTable]
-);
-const tables: Table[] = [
-    interviewTimesTable,
-    companiesTable,
-    roomsTable,
-    roomBreaksTable,
-    attendeeTable,
-    attendeeBreaksTable,
-    attendeePrefsTable,
-    roomCandidatesTable
-];
-
-
-
-function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: () => void}): JSX.Element{
+function FileUpload({table, tableData, updateTableData}: {table: Table, tableData: TableData, updateTableData: (td: TableData) => void}): JSX.Element{
     const fileRef = React.useRef(null as HTMLInputElement|null);
     const [isLoading, setIsLoading] = React.useState(false);
     const [fileName, setFileName] = React.useState("");
@@ -253,17 +43,12 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
         
         setIsLoading(true);
         
-        CallAPIToJson(`/set${table.endpoint}`, RestfulType.POST, data)
-        .then(({data}: {data: string[][]}) => {
-            table.addValues(data);
-            for (let otherTable of tables){
-                if (otherTable == table) continue;
-                if (otherTable.dependencies.includes(table)){
-                    otherTable.empty();
-                }
-            }
+        CallAPIToJson(
+            `/set${table.endpoint}`, 
+            RestfulType.POST, data
+        ).then(({data}: {data: string[][]}) => {
             alert(`Uploaded table: ${table.name}`);
-            updateIsLoadeds();
+            updateTableData(tableData);
         }).catch((res)=>{
             console.log("res", res);
             alert(res["error"]);
@@ -287,7 +72,12 @@ function FileUpload({table, updateIsLoadeds}: {table: Table, updateIsLoadeds: ()
         }
     }
 
-    let buttWorks = table.isDependenciesLoaded();
+    React.useEffect(
+        ()=>{setFileName("")}, 
+        [JSON.stringify(tableData)]
+    )
+
+    let buttWorks = table.isDependenciesLoaded(tableData);
 
     return isLoading ? <div className="loader"></div> : <>
         <label id="htmlUploadContainer">
@@ -333,46 +123,30 @@ function ColumnConfig({table, col}: {table: Table, col: IColumn}){
 }
 
 function TableConfig(
-    {table, isSelected, scrollTo, updateIsLoadeds}: 
-    {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, updateIsLoadeds: () => void}
+    {table, isSelected, scrollTo, tableData, updateTableData}: 
+    {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, tableData: TableData, updateTableData: (t: TableData) => void}
 ){
-    const [tableIsLoaded, setTableIsLoaded] = React.useState(table.isLoaded());
-    let updateTableIsLoaded = () => setTableIsLoaded(table.isLoaded());
+    const [values, setValues] = React.useState(table.getValues(tableData));
 
-    const shouldExpand = () => table.isDependenciesLoaded();
-    const [isExpanded, setIsExpanded] = React.useState(shouldExpand());
-
-    const getDependencyLoaded = () => JSON.stringify(table.dependencies.map(d => d.isLoaded()));
-    const [dependencyLoaded, setDependencyLoaded] = React.useState(getDependencyLoaded());
-    console.log(`rendering table ${table.name}`)
+    const shouldExpand = (t: Table) => t.isDependenciesLoaded(tableData);
+    const [isExpanded, setIsExpanded] = React.useState(shouldExpand(table));
 
     const elRef = React.useRef(null as HTMLDivElement|null);
     React.useEffect(() => {
         if (isSelected){
-            elRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start'});
+            elRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
         }
         setIsExpanded(true);
         scrollTo(null);
     }, [isSelected]);
 
-    let updateData = () => {
-        CallAPIToJson(`/get${table.endpoint}`, RestfulType.GET)
-        .then(({data}: {data: string[][]}) => {
-            table.addValues(data);
-            updateTableIsLoaded();
-        }).catch((res)=>{
-            console.log("res", res);
-            alert(res["error"]);
-        });
-    }
+    React.useEffect(() => {
+        setIsExpanded(shouldExpand(table));
+    }, [shouldExpand(table)]);
 
     React.useEffect(() => {
-        if (table.isDependenciesLoaded()) {
-            updateData();
-        }
-        setIsExpanded(shouldExpand());
-        setDependencyLoaded(getDependencyLoaded());
-    }, [getDependencyLoaded()]);
+        setValues(table.getValues(tableData));
+    }, [JSON.stringify(table.getValues(tableData))]);
 
     return <div ref={elRef} className='table'>
         <div className='tableHeader row clickable' onClick={() => setIsExpanded(!isExpanded)}>
@@ -382,8 +156,8 @@ function TableConfig(
             <h2 className='centerAll'>{table.name}</h2>
             <div className='spacer'></div>
             <div className='tableAvailability centerAll'>
-                {table.isDependenciesLoaded() ? 
-                    (table.isLoaded() ? Icons.CheckMark : Icons.PlusSign) : 
+                {table.isDependenciesLoaded(tableData) ? 
+                    (table.isLoaded(tableData) ? Icons.CheckMark : Icons.PlusSign) : 
                     Icons.CrossSign
                 }
             </div>
@@ -402,7 +176,7 @@ function TableConfig(
                     >
                         <p>{t.name} table</p>
                         <div className='dependencyIcon row centerCross'>
-                            {t.isLoaded() ? Icons.CheckMark : Icons.CrossSign}
+                            {t.isLoaded(tableData) ? Icons.CheckMark : Icons.CrossSign}
                         </div>
                     </li>)}
                 </ul>
@@ -416,15 +190,15 @@ function TableConfig(
                 </ul>
             </div>
             <div className='tableUpload col centerCross'>
-                <FileUpload table={table} updateIsLoadeds={updateIsLoadeds}/>
-                {table.isLoaded() ? <div className='tableTable'>
+                <FileUpload table={table} tableData={tableData} updateTableData={updateTableData}/>
+                {table.isLoaded(tableData) ? <div className='tableTable'>
                     <table>
                         <thead><tr>
                             {table.columns.map((c, i) => 
                                 <th key={i}>{c.name}</th>
                             )}
                         </tr></thead>
-                        <tbody>{table.values.map((r, i) => 
+                        <tbody>{values.map((r, i) => 
                             <tr key={i}>{r.map((c, k) => 
                                 <td key={k}>
                                     {FormatColumn(c, table.columns[k].type)}
@@ -438,13 +212,12 @@ function TableConfig(
     </div>
 }
 
-function ConfigurationPage(){
+function ConfigurationPage(
+        {tableData, updateTableData}: 
+        {tableData: TableData, updateTableData: (tableData: TableData) => void}
+    ){
 
     let [selectedTable, selectTable] = React.useState(null as Table|null);
-
-    const getIsLoadeds = () => JSON.stringify(tables.map(t => t.isLoaded()));
-    let [isLoadeds, setIsLoadeds] = React.useState(getIsLoadeds());
-    const updateIsLoadeds = () => setIsLoadeds(getIsLoadeds());
 
     return <div id='configPage'>
         {tables.map(t => <TableConfig 
@@ -452,7 +225,8 @@ function ConfigurationPage(){
             table={t} 
             isSelected={selectedTable == t} 
             scrollTo={(t: Table|null) => selectTable(t)}
-            updateIsLoadeds={updateIsLoadeds}
+            tableData={tableData}
+            updateTableData={updateTableData}
         />)}
     </div>
 }

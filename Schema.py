@@ -323,19 +323,21 @@ def GetInterviewCandidates(cursor: SqliteDB) -> dict[str, set[str]]:
 COFFEECHATCANDIDATES_TABLE = createTable("coffeeChatCandidate")
 COFFEECHATCANDIDATES_TABLE.CreateForeignKey(COMPANYROOM_ROOMNAME_COL, isPrimary=True)
 COFFEECHATCANDIDATES_TABLE.CreateForeignKey(ATTENDEES_ID_COL, isPrimary=True)
-
-def AddCoffeeChatCandidate(cursor: SqliteDB, roomName: str, attId: int):
+COFFEECHATCANDIDATES_PREF_COL = COFFEECHATCANDIDATES_TABLE.CreateColumn("preference", INTEGER_TYPE)
+def AddCoffeeChatCandidate(cursor: SqliteDB, roomName: str, attId: int, pref: int):
     cursor.InsertIntoTable(
         COFFEECHATCANDIDATES_TABLE, {
             COMPANYROOM_ROOMNAME_COL: [roomName],
             ATTENDEES_ID_COL: [attId],
+            COFFEECHATCANDIDATES_PREF_COL: [pref]
         }
     )
 
-def GetCoffeeChatCandidates(cursor: SqliteDB) -> dict[str, set[int]]:
+def GetCoffeeChatCandidates(cursor: SqliteDB) -> dict[str, list[int]]:
     ccCandidatesObj = cursor.FetchAll(cursor.Q(
         [COMPANYROOM_ROOMNAME_COL, ATTENDEES_ID_COL],
-        COFFEECHATCANDIDATES_TABLE
+        COFFEECHATCANDIDATES_TABLE,
+        orderBys=[COFFEECHATCANDIDATES_PREF_COL]
     ))
 
     ccCandidates = {}
@@ -343,7 +345,8 @@ def GetCoffeeChatCandidates(cursor: SqliteDB) -> dict[str, set[int]]:
         room = roomCandidateObj[COMPANYROOM_ROOMNAME_COL.name]
         att = roomCandidateObj[ATTENDEES_ID_COL.name]
 
-        ccCandidates[room] = ccCandidates.get(room, set()).union([att])
+        ccCandidates[room] = ccCandidates.get(room, []) + [att]
+        # because we orderby pref, we can just append and know we will be in order
     return ccCandidates
 
 def clearAllTables(cursor: SqliteDB): 

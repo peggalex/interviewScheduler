@@ -341,7 +341,11 @@ const coffeeChatsCandidatesTable: Table = new Table(
     'Coffee Chat Candidates',
     'CoffeeChatCandidates',
     'This is a list of room coffee chats candidates.',
-    [roomNameCol, attendeeCol],
+    [roomNameCol, attendeeCol, {
+        name: 'Preference',
+        type: ColumnType.INT,
+        desc: 'must be positive, the smaller the better'
+    }],
     false,
     [attendeeTable, companyRoomsTable, coffeeChatsTable]
 );

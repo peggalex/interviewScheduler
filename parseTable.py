@@ -177,7 +177,7 @@ def readCoffeeChatCandidates(doc: str, cursor: SqliteDB):
     for roomName in coffeeChatRooms:
             ccCandidates[roomName] = set()
 
-    for roomName,attendeeId in getCols(doc, 2, True):
+    for roomName,attendeeId,pref in getCols(doc, 3, True):
         attendeeId = int(attendeeId)
 
         ValidationException.throwIfFalse(
@@ -196,8 +196,12 @@ def readCoffeeChatCandidates(doc: str, cursor: SqliteDB):
             attendeeId not in ccCandidates[roomName],
             f"duplicate attendee ({attendeeId}) for coffee chat candidate ({roomName})"
         )
+        ValidationException.throwIfFalse(
+            str.isdigit(pref) and 0 < int(pref),
+            f"invalid preference ({pref}), must be a positive integer"
+        )
         ccCandidates[roomName].add(attendeeId)
-        AddCoffeeChatCandidate(cursor, roomName, attendeeId)
+        AddCoffeeChatCandidate(cursor, roomName, attendeeId, pref)
 
     for room,atts in ccCandidates.items():
         ValidationException.throwIfFalse(

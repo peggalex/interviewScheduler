@@ -1,5 +1,5 @@
 import React from 'react';
-import ConfigurationPage from './Configuration2';
+import ConfigurationPage from './Configuration';
 import SchedulePage from './Schedule';
 import Icons from './Icons';
 import './styles/App.css';

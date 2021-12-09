@@ -2,7 +2,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Callable
 
-from flask.scaffold import F
 from parseTable import getFileContents, readAttendeeBreaks, readAttendeeNames, readAttendeePrefs, readCoffeeChat, readCoffeeChatCandidates, readCompanyRoomNames, readConventionTimes, readInterviewCandidates, readRoomBreaks, readRoomInterviews, setAttendeeAndCompanies, tryToReadTable
 from serverUtilities import EXCEL_DATETIME_FORMAT, Appointment, AppointmentIntersects, Attendee, Company, TimeIntervalHash, ValidationException, TimeInterval, canSwapBoth, getJsonSchedule, getNoApps, getNoNotEmptyApps, getUtility, shouldSwap, swapBoth, trySwapBoth
 from Schema import *
@@ -51,8 +50,8 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
         for company in companies:
             for app in company.getAppointments():
                 if not app.isEmpty():
-                    prev = attToCompaniesAttending[app.isCoffeeChat].get(app.attendee, 0)
-                    attToCompaniesAttending[app.isCoffeeChat][app.attendee] = prev + 1
+                    prev = attToCompaniesAttending[app.isCoffeeChat()].get(app.attendee, 0)
+                    attToCompaniesAttending[app.isCoffeeChat()][app.attendee] = prev + 1
 
         attToNoCompaniesInvited = {
             isCoffeeChat: {a: a.getNoCompaniesWant(companies, isCoffeeChat) for a in atts}
@@ -81,13 +80,13 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
                 for c in companies:
                     if c.wantsAttendee(newAtt, isCoffeeChat):
                         for app in c.getAppointments():
-                            if app.isEmpty() and app.isCoffeeChat == isCoffeeChat:
+                            if app.isEmpty() and app.isCoffeeChat() == isCoffeeChat:
                                 if app.canSwap(newAtt, appIntersects, None):
                                     validApps.append(app)
                                 elif isCoffeeChat:
                                     # a little logic to handle coffee chats overlapping with apps
                                     appAtTime = appIntersects.getOtherAppAtTime(newAtt, app)
-                                    if appAtTime is None or appAtTime.isCoffeeChat:
+                                    if appAtTime is None or appAtTime.isCoffeeChat():
                                         continue
                                     for appAtTimeSwap in appAtTime.companyRoom.appointments:
                                         if appAtTimeSwap in (app, appAtTime) or appAtTimeSwap.attendee == newAtt:
@@ -103,14 +102,14 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
                 if validApps:
                     app = max(validApps, key=lambda app: (
                             len(emptyAppsCache[app.timeHash]), 
-                            -(len(app.companyRoom.candidates) if not isCoffeeChat else len(app.companyRoom.coffeeChat.candidates))
-                            -(len(app.companyRoom.times) if not isCoffeeChat else app.companyRoom.coffeeChat.capacity)
-                            -newAtt.getPref(app.company),
+                            -(len(app.companyRoom.candidates) if not isCoffeeChat else len(app.companyRoom.coffeeChat.candidates)),
+                            -(len(app.companyRoom.times) if not isCoffeeChat else app.companyRoom.coffeeChat.capacity),
+                            -app.getUtility(newAtt)
                         )
                         # choose the least busy spot with the lowest preference
                     )
                     app.swap(newAtt, appIntersects, None)
-                    attToCompaniesAttending[app.isCoffeeChat][newAtt] += 1
+                    attToCompaniesAttending[app.isCoffeeChat()][newAtt] += 1
                     updateEmptyAppsCache(emptyAppsCache, app)
                     changed = True
 
@@ -140,7 +139,7 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
                     room.coffeeChat.candidates if isCoffeeChat else room.candidates
                 )
                 for app in room.appointments:
-                    if app.isCoffeeChat == isCoffeeChat:
+                    if app.isCoffeeChat() == isCoffeeChat:
                         appAtts.append([app, app.attendee])
                         if not app.isEmpty():
                             attsNotChosen.remove(app.attendee)
@@ -160,6 +159,7 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
                     if all(a is None for a in (currentAtt, existingAtt)): continue
                     if all(a is None for a in (currentApp, existingApp)): continue
                     
+                    """
                     if any(app1 and att1 and not app2
                         for app1,att1,app2,att2 in (
                             (currentApp, currentAtt, existingApp, existingAtt), 
@@ -169,6 +169,7 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
                     # this condition will increase expected rank (bad), but it will help
                     # preserve the heuristic of tryMatchEveryone, 
                     # foremost enabling people to have at least 1 interview
+                    """
 
                     if shouldSwap(currentApp, currentAtt, existingApp, existingAtt, appIntersects):
                         swapBoth(currentApp, currentAtt, existingApp, existingAtt, appIntersects)
@@ -192,7 +193,7 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
             for c in companies:
 
                 apps = sorted(
-                    (a for a in c.getAppointments() if not a.isCoffeeChat), 
+                    (a for a in c.getAppointments() if not a.isCoffeeChat()), 
                     key=lambda app: app.time.timestamp()
                 )
 
@@ -242,7 +243,7 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
     minRank(False)
     printStatus()
 
-    print('\ntryMatchEveryone coffee chat')
+    print('\n\ttryMatchEveryone coffee chat')
     tryMatchEveryone(True)
     printStatus()
 
@@ -275,7 +276,7 @@ if __name__ == "__main__":
                 (readAttendeeBreaks, 'attendeeBreaksList.csv'),
                 (readAttendeePrefs, 'attendeePreferencesList.csv'),
                 (readInterviewCandidates, 'roomCandidatesList.csv'),
-                (readCoffeeChatCandidates, 'coffeeChatCandidatesList.csv')
+                (readCoffeeChatCandidates, 'coffeeChatCandidatesList2.csv')
             ]:
                 func(getFileContents(filename), cursor)
         else:
@@ -299,9 +300,11 @@ if __name__ == "__main__":
 
         print('done readin')
 
-        #cProfile.run('run(companies, attendees, GetInterviewTimes(cursor))')
+        #cProfile.run('run(companies, attendees, GetConventionTimes(cursor))')
+        
         print('creating schedule...')
         run(companies, attendees, GetConventionTimes(cursor))
         filename = f"Interview Schedule {datetime.now().isoformat()[:-7].replace(':', '.')}.csv"
         writeSchedule(filename, companies)
         print(f"wrote schedule to file '{filename}'")
+        

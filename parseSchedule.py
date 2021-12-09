@@ -54,7 +54,7 @@ def parseJsonSchedule(data: dict) -> tuple[
                 )
                 for appJson, app in zip(
                     [a for a in roomJson['apps'] if a['isCoffeeChat'] == True], 
-                    [a for a in room.appointments if a.isCoffeeChat == True]
+                    [a for a in room.appointments if a.isCoffeeChat() == True]
                 ):
                     att = appJson['att']
                     if att is not None:

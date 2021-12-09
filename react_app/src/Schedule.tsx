@@ -80,6 +80,11 @@ interface ISchedule {
     varNoAppointments: number;
 }
 
+function getCCPref(schedule: ISchedule, companyName: string, roomName: string, attId: number): number | null{
+    let ccCandidates = schedule.companies[companyName][roomName].coffeeChat?.candidates;
+    return ccCandidates ? ccCandidates.indexOf(attId) + 1 : null;
+}
+
 function addHours(date: Date, hours: number): Date {
     let newDate = new Date(date);
     newDate.setHours(date.getHours() + hours);
@@ -457,7 +462,7 @@ function ScheduleCoffeeChat(
                         let cc = room.coffeeChat;
                         if (cc == null){
                             return null;
-                        }        
+                        }       
                         let interval = Interval.fromStr(cc);    
                         
                         let candidatesNotSelected = new Set(cc.candidates);
@@ -474,6 +479,7 @@ function ScheduleCoffeeChat(
                                 if (att != null){
                                     candidatesNotSelected.delete(app.att!);
                                 }
+                                let ccPref = [cc, app.att].includes(undefined) ? null : getCCPref(schedule, companyName, roomName, app.att!); 
                                 return <div className="appContainer centerAll">
                                     <div
                                         data-att={app.att}
@@ -491,7 +497,8 @@ function ScheduleCoffeeChat(
                                         <div className='appLength'>{interval.lengthMins}m</div>
                                         <span className='appAtt'>{app.att || '?'}</span>
                                         <span className='appTime'>{dateToTimeStr(interval.start)}</span>
-                                        <span className='appPref'>{app.att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>
+                                        <span className='appPref'>{app.att == null ? null : `rank: ${ccPref}`}</span>
+                                        {/*<span className='appPref'>{app.att == null ? null : `pref: ${att?.prefs[companyName]}`}</span>*/}
                                     </div>
                                 </div>
                             })}</div></td>
@@ -508,6 +515,7 @@ function ScheduleCoffeeChat(
                                 </div>
                                 {Array.from(candidatesNotSelected).map(attId => {
                                     let att = schedule.attendees[attId];
+                                    let ccPref = getCCPref(schedule, companyName, roomName, attId); 
                                     return <div key={attId} className="appContainer notSelected centerAll">
                                         <div 
                                             className={`app col centerAll cc`} 
@@ -520,7 +528,8 @@ function ScheduleCoffeeChat(
                                             onDragOver={allowCCDrop}
                                         >   
                                             <div className='ccIcon'>{Icons.Coffee}</div>
-                                            <span className='appPref'>pref: {att.prefs[companyName]}</span>
+                                            <span className='appPref'>rank: {ccPref}</span>
+                                            {/*<span className='appPref'>pref: {att.prefs[companyName]}</span>*/}
                                             <span className='appAtt'>{attId}</span>
                                         </div>
                                     </div>
@@ -618,6 +627,8 @@ function ScheduleAttendees(
                                 let lengthPercent = (interval.lengthMins / 60) * 100;
                                 let startPercent = (interval.start.getMinutes() / 60) * 100;
                                 let att = app.att == null ? null : schedule.attendees[app.att!];
+
+                                let ccPref = app.isCoffeeChat && app.att ? getCCPref(schedule, app.companyName, app.roomName, app.att!) : null;
                                 return <div 
                                     data-app={`${dateToStr(interval.start)} ${dateToStr(interval.end)}`} 
                                     className="appContainer centerAll" style={{
@@ -631,22 +642,31 @@ function ScheduleAttendees(
                                         <div className='appLength'>{interval.lengthMins}m</div>
                                         <span className='appAtt' title={app.roomName}>{app.roomName}</span>
                                         <span className='appTime'>{dateToTimeStr(interval.start)}</span>
-                                        <span className='appPref'>{att == null ? null : `pref: ${att?.prefs[app.companyName]}`}</span>
+                                        <span className='appPref'>{
+                                            att == null ? null : 
+                                                app.isCoffeeChat ? `rank: ${ccPref}` : `pref: ${att?.prefs[app.companyName]}`
+                                        }</span>
                                     </div>
                                 </div>
                             })
                         }</td>)}
                         <td><div className="row">{[false, true].map(isCoffeeChat => {
                             let roomsNotSelected = isCoffeeChat ? coffeeChatRoomsNotSelected : interviewRoomsNotSelected;
-                            return Array.from(roomsNotSelected).map(roomName => (
-                                <div key={attId} className="appContainer notSelected centerAll">
-                                    <div className={`app col centerAll ${isCoffeeChat ? 'cc' : ''}`}>
-                                        {isCoffeeChat ? <div className='ccIcon'>{Icons.Coffee}</div> : null}
-                                        <span className='appPref'>pref: {att.prefs[ROOM_TO_COMPANY[roomName]]}</span>
-                                        <span className='appAtt'>{ROOM_TO_COMPANY[roomName]}</span>
+                            return Array.from(roomsNotSelected).map(roomName => {
+                                let companyName = ROOM_TO_COMPANY[roomName];
+                                let ccPref = isCoffeeChat ? getCCPref(schedule, companyName, roomName, attId) : null;
+                                return (
+                                    <div key={attId} className="appContainer notSelected centerAll">
+                                        <div className={`app col centerAll ${isCoffeeChat ? 'cc' : ''}`}>
+                                            {isCoffeeChat ? <div className='ccIcon'>{Icons.Coffee}</div> : null}
+                                            <span className='appPref'>{
+                                                isCoffeeChat ? `rank: ${ccPref}` : `pref: ${att.prefs[companyName]}`
+                                            }</span>
+                                            <span className='appAtt'>{companyName}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            )
+                                )
+                            }
                         )})}</div></td>
                     </tr>
                 })}

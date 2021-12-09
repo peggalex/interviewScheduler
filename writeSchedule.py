@@ -1,6 +1,6 @@
-from serverUtilities import EXCEL_DATETIME_FORMAT, Appointment
+from serverUtilities import EXCEL_DATETIME_FORMAT, Appointment, Company
 
-def writeSchedule(filename, companies):
+def writeSchedule(filename: str, companies: list[Company]):
     apps: list[Appointment] = []
     for company in companies:
         apps.extend([a for a in company.getAppointments() if not a.isEmpty()])
@@ -14,7 +14,7 @@ def writeSchedule(filename, companies):
                 str(app.attendee.uid), 
                 app.attendee.name,
                 app.companyRoom.name, 
-                str(app.isCoffeeChat),
+                str(app.isCoffeeChat()),
                 app.time.strftime(EXCEL_DATETIME_FORMAT), 
                 app.end.strftime(EXCEL_DATETIME_FORMAT)
             ])
