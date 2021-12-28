@@ -4,7 +4,7 @@
 * Install [Docker](https://www.docker.com/)
 * Download code as a `.zip` and unzip
 * Open Docker
-* Open `startup.command` file in code folder
+* Open `startup.command` file in code folder (must right-click and select open, or it will give an error)
 
 ## Run on Windows 
 
