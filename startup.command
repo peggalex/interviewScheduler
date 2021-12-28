@@ -1,4 +1,6 @@
 #!/bin/bash
+
+cd "$(dirname "$0")"
 if test -z "$(docker images -q sched:latest)"; then
 	echo "building..."
 	docker build --tag sched .
