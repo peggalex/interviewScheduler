@@ -6,9 +6,13 @@ if test -z "$(docker images -q sched:latest)"; then
 else
 	echo "already built"
 fi
-echo "starting up"
-docker run -p 4000:4000 sched &
-sleep 2.5
+if test -z "$(lsof -i:4000)"; then
+	echo "starting up"
+	docker run -p 4000:4000 sched &
+else
+	echo "already started"
+fi
+sleep 2
 open http://localhost:4000
 
 
