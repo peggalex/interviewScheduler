@@ -12,15 +12,20 @@ function FormatColumn(col: string, colType: ColumnType){
             let date = new Date(Date.parse(col));
             let month = date.toLocaleString('default', { month: 'short' });
             let mins = date.getMinutes().toString().padStart(2, '0');
-            return `${month} ${date.getDay()}, ${date.getHours()}:${mins}`;
+            return `${month} ${date.getDate()}, ${date.getHours()}:${mins}`;
         default:
             throw Error(`unhandled col type for FormatColumn(): ${ColumnType}`);
     }
 }
 
-function FileUpload({table, tableData, updateTableData}: {table: Table, tableData: TableData, updateTableData: (td: TableData) => void}): JSX.Element{
+function FileUpload({table, tableData, updateTableData, isLoading, setIsLoading}: {
+    table: Table, 
+    tableData: TableData, 
+    updateTableData: (td: TableData) => void,
+    isLoading: boolean,
+    setIsLoading: (isLoading: boolean) => void
+}): JSX.Element {
     const fileRef = React.useRef(null as HTMLInputElement|null);
-    const [isLoading, setIsLoading] = React.useState(false);
     const [fileName, setFileName] = React.useState("");
 
     async function sendFile(){
@@ -36,7 +41,7 @@ function FileUpload({table, tableData, updateTableData}: {table: Table, tableDat
         } else {
             fileElement.setCustomValidity("");
         }
-        let file = files[0];        
+        let file = files[0];
         
         var data = new FormData();
         data.append('table', file);
@@ -127,6 +132,7 @@ function TableConfig(
     {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, tableData: TableData, updateTableData: (t: TableData) => void}
 ){
     const [values, setValues] = React.useState(table.getValues(tableData));
+    const [isLoading, setIsLoading] = React.useState(false);
 
     const shouldExpand = (t: Table) => t.isDependenciesLoaded(tableData);
     const [isExpanded, setIsExpanded] = React.useState(shouldExpand(table));
@@ -190,8 +196,14 @@ function TableConfig(
                 </ul>
             </div>
             <div className='tableUpload col centerCross'>
-                <FileUpload table={table} tableData={tableData} updateTableData={updateTableData}/>
-                {table.isLoaded(tableData) ? <div className='tableTable'>
+                <FileUpload 
+                    table={table} 
+                    tableData={tableData} 
+                    updateTableData={updateTableData} 
+                    isLoading={isLoading} 
+                    setIsLoading={setIsLoading}
+                />
+                {!isLoading && table.isLoaded(tableData) ? <div className='tableTable'>
                     <table>
                         <thead><tr>
                             {table.columns.map((c, i) => 

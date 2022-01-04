@@ -240,7 +240,7 @@ const roomInterviewsTable: Table = new Table(
 const roomBreaksTable: Table = new Table(
     'Room Breaks',
     'RoomBreaks',
-    'This is a list of rooms belonging to a company.',
+    'This is a list of room breaks.',
     [
         roomNameCol,
         {
@@ -265,7 +265,7 @@ const attendeeCol: IColumn = {
 const attendeeTable: Table = new Table(
     'Attendees',
     'AttendeeNames',
-    'This is a list of rooms belonging to a company.',
+    'This is a list of attendees (students attending ASNA).',
     [attendeeCol, {
         name: "Attendee Name",
         type: ColumnType.STRING
@@ -276,7 +276,7 @@ const attendeeTable: Table = new Table(
 const attendeeBreaksTable: Table = new Table(
     'Attendee Breaks',
     'AttendeeBreaks',
-    'This is a list of rooms belonging to a company.',
+    'This is a list of attendee breaks.',
     [attendeeCol,
     {
         name: 'Start Time',
@@ -294,7 +294,7 @@ const attendeeBreaksTable: Table = new Table(
 const attendeePrefsTable: Table = new Table(
     'Attendee Preferences',
     'AttendeePrefs',
-    'This is a list of rooms belonging to a company.',
+    'This is a list of the preferences an attendee has for a company.',
     [attendeeCol, companyNameCol,
     {
         name: 'Preference',
@@ -340,9 +340,9 @@ const coffeeChatsTable: Table = new Table(
 const coffeeChatsCandidatesTable: Table = new Table(
     'Coffee Chat Candidates',
     'CoffeeChatCandidates',
-    'This is a list of room coffee chats candidates.',
+    'This is a list of room coffee chats candidates, and the rank the company ascribes that candidate.',
     [roomNameCol, attendeeCol, {
-        name: 'Preference',
+        name: 'Rank',
         type: ColumnType.INT,
         desc: 'must be positive, the smaller the better'
     }],

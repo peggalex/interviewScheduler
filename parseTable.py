@@ -132,7 +132,6 @@ def readCoffeeChat(doc: str, cursor: SqliteDB):
     cursor.EmptyTable(COFFEECHATCANDIDATES_TABLE)
 
     conventionTimes = GetConventionTimes(cursor)
-    roomIntervals = GetRoomIntervals(cursor)
     companyRoomNames = GetCompanyRooms(cursor)
     
     coffeeChatRooms: set[str] = set()
@@ -155,10 +154,6 @@ def readCoffeeChat(doc: str, cursor: SqliteDB):
         ValidationException.throwIfFalse(
             any(d.contains(timeInt) for d in conventionTimes), 
             f"invalid coffee chat: chat at {timeInt} does not intersect with interview times: {conventionTimes}"
-        )
-        ValidationException.throwIfFalse(
-            roomIntervals[roomName].contains(timeInt),
-            f"invalid coffee chat: chat at {timeInt} does not intersect with room time: {roomIntervals[roomName]}"
         )
 
         coffeeChatRooms.add(roomName)
