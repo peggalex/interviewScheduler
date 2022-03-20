@@ -358,7 +358,7 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
     companyRoomNames = GetCompanyRooms(cursor)
     roomLengths = GetRoomLengths(cursor)
     roomIntervals = GetRoomIntervals(cursor)
-    roomBreaks= GetRoomBreaks(cursor)
+    roomBreaks = GetRoomBreaks(cursor)
 
     attendeeIdToName = GetAttendeeNames(cursor)
     attendeePrefs = GetAttendeePrefs(cursor)
@@ -400,14 +400,14 @@ def setAttendeeAndCompanies(cursor: SqliteDB, companies: list[Company], attendee
     for companyName,roomNames in companyRoomNames.items():
         for roomName in roomNames:
             company = companyNameToCompany[companyName]
-            interval = roomIntervals[roomName]
+            interval = roomIntervals.get(roomName, None)
             breaks = roomBreaks.get(roomName, [])
 
             # if we have a coffeeChat, don't generate an appointment at that time
             if roomName in coffeeChatTimes:
                 breaks.append(coffeeChatTimes[roomName])
 
-            times = getSomeTimes(conventionTimes, roomLengths[roomName], breaks, interval)
+            times = getSomeTimes(conventionTimes, roomLengths[roomName], breaks, interval) if interval is not None else []
             room = company.addCompanyRoom(
                 roomName,
                 times, 
