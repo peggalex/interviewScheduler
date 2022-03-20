@@ -10,6 +10,7 @@
 
 .tableChevronContainer svg {
     stroke-width: 3px;
+    width: 2rem;
 }
 
 .tableHeader {
@@ -134,7 +135,7 @@ body:last-child {
     max-height: 27.75rem; 
     /* idea is to have an element partially shown to indicate scrollability, 
     macosx sometimes hides scrollbars */
-    overflow: scroll;
+    overflow: auto;
     margin: 1rem 0;
     width: 90%;
 }

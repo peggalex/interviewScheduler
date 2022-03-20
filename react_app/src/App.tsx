@@ -12,7 +12,7 @@ function App(){
 	let [configPageSelected, setConfigPageSelected] = React.useState(true);
 	let [canGenerate, setCanGenerate] = React.useState(false);
 
-    let tableDataInit: {[name: string]: any[]} = {};
+    let tableDataInit: TableData = {};
     for (let table of tables){
         tableDataInit[table.name] = [];
     }
@@ -28,14 +28,15 @@ function App(){
             });
     }
 
-    async function updateTableData(tableDataOld: TableData){
+    async function updateTableData(){
+		const newTable: TableData  = {};
         for (let table of tables){
-            tableData[table.name] = await getData(table);
+            newTable[table.name] = await getData(table);
         }
-        setTableData({...tableDataOld});
+        setTableData(newTable);
     }
 
-    React.useEffect(() => {updateTableData(tableData)}, []); // call once on init
+    React.useEffect(() => {updateTableData()}, []); // call once on init
 
 	React.useEffect(() => {
 		let canGenerate = true;

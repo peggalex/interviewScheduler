@@ -8,12 +8,6 @@ from Schema import *
 from writeSchedule import writeSchedule
 import cProfile
 
-""" 
-============
-love u rach!
-============
-"""
-
 def run(companies: list[Company], attendees: list[Attendee], conventionTimes: list[TimeInterval]) -> dict:
     print("start:", datetime.now().strftime("%H:%M:%S"))
 

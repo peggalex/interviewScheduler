@@ -18,10 +18,19 @@ function FormatColumn(col: string, colType: ColumnType){
     }
 }
 
+const getLocalStorageKey = (table: Table) => `filename|${table.name}`;
+const getDefaultFilename = (table: Table, tableData: TableData) => {
+    if (!table.isLoaded(tableData)){
+        return "";
+    }
+    const localStorageKey = getLocalStorageKey(table);
+    return localStorage.getItem(localStorageKey) ?? "<unknown filename>";
+}
+
 function FileUpload({table, tableData, updateTableData, isLoading, setIsLoading}: {
     table: Table, 
     tableData: TableData, 
-    updateTableData: (td: TableData) => void,
+    updateTableData: () => void,
     isLoading: boolean,
     setIsLoading: (isLoading: boolean) => void
 }): JSX.Element {
@@ -53,7 +62,9 @@ function FileUpload({table, tableData, updateTableData, isLoading, setIsLoading}
             RestfulType.POST, data
         ).then(({data}: {data: string[][]}) => {
             alert(`Uploaded table: ${table.name}`);
-            updateTableData(tableData);
+            setFileName(file.name);
+            localStorage.setItem(getLocalStorageKey(table), file.name); 
+            updateTableData();
         }).catch((res)=>{
             console.log("res", res);
             alert(res["error"]);
@@ -70,17 +81,15 @@ function FileUpload({table, tableData, updateTableData, isLoading, setIsLoading}
         let files = fileElement.files;
 
         if (files != null && 0 < files.length) {
-            setFileName(files[0].name);    
             sendFile();  
         } else {
             setFileName("");      
         }
     }
 
-    React.useEffect(
-        ()=>{setFileName("")}, 
-        [JSON.stringify(tableData)]
-    )
+    React.useEffect(() => {
+        setFileName(getDefaultFilename(table, tableData))
+    }, [JSON.stringify(tableData)]);
 
     let buttWorks = table.isDependenciesLoaded(tableData);
 
@@ -129,7 +138,7 @@ function ColumnConfig({table, col}: {table: Table, col: IColumn}){
 
 function TableConfig(
     {table, isSelected, scrollTo, tableData, updateTableData}: 
-    {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, tableData: TableData, updateTableData: (t: TableData) => void}
+    {table: Table, isSelected: boolean, scrollTo: (t: Table|null) => void, tableData: TableData, updateTableData: () => void}
 ){
     const [values, setValues] = React.useState(table.getValues(tableData));
     const [isLoading, setIsLoading] = React.useState(false);
@@ -226,7 +235,7 @@ function TableConfig(
 
 function ConfigurationPage(
         {tableData, updateTableData}: 
-        {tableData: TableData, updateTableData: (tableData: TableData) => void}
+        {tableData: TableData, updateTableData: () => void}
     ){
 
     let [selectedTable, selectTable] = React.useState(null as Table|null);
