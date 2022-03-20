@@ -250,7 +250,8 @@ def readAttendeePrefs(doc: str, cursor: SqliteDB):
     companyNames = set(GetCompanyRooms(cursor).keys())
     attendeeIDs = GetAttendees(cursor)
 
-    lowestRank = -float('inf')
+    # lowestRank = -float('inf')
+    lowestRank = -1
     attendeePreferences = {a: {} for a in attendeeIDs}
     for attendeeID,companyName,pref in getCols(doc, 3, False):
 
