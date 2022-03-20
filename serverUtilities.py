@@ -60,7 +60,7 @@ class Company:
 
     def __init__(self, name: str):
         self.name = name
-        self.rooms = []
+        self.rooms: list[CompanyRoom] = []
 
     def addCompanyRoom(self, name: str, times: list[datetime], candidates: set[Attendee]) -> CompanyRoom:
         room = CompanyRoom(name, self, times, candidates)
@@ -150,7 +150,7 @@ class CoffeeChat(TimeInterval):
         return attendee in self.attendees
 
     def companyPref(self, att: Attendee):
-        assert att in self.candidates
+        assert att in self.candidatesSet
         return self.candidates.index(att) + 1
 
     def toJson(self) -> dict:
@@ -222,7 +222,7 @@ class Appointment(TimeInterval):
     def __repr__(self):
         return f"{self.companyRoom.name}@{self.time.strftime('%b %d %H:%M')}"
 
-    def isCoffeChat(self) -> bool:
+    def isCoffeeChat(self) -> bool:
         raise NotImplementedError()
 
     def isAttendee(self, attendee) -> bool:

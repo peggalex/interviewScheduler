@@ -8,6 +8,20 @@ from Schema import *
 from writeSchedule import writeSchedule
 import cProfile
 
+def getAttToMaxRank(companies: list[Company], attendees: list[Attendee], isCoffeeChat: bool):
+    attToMaxRank = {a:0 for a in attendees}
+    if isCoffeeChat:
+        for att in attendees:
+            for c in companies:
+                for r in c.rooms:
+                    if r.wantsAttendee(att, True):
+                        attToMaxRank[att] = max(
+                            r.coffeeChat.companyPref(att), 
+                            attToMaxRank[att]
+                        )
+    return attToMaxRank
+
+
 def run(companies: list[Company], attendees: list[Attendee], conventionTimes: list[TimeInterval]) -> dict:
     print("start:", datetime.now().strftime("%H:%M:%S"))
 
@@ -39,18 +53,17 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
 
         #atts = sorted(atts, key = lambda att: len(att.commitments), reverse=True)
         #noCompaniesCache = {a.uid: a.getNoCompaniesWant(companies, isCoffeeChat) for a in atts}
+
+        attToNoMaxRank = getAttToMaxRank(companies, attendees, isCoffeeChat)
         
-        attToCompaniesAttending = {isCoffeeChat: {a:0 for a in atts} for isCoffeeChat in [False, True]}
+        attToCompaniesAttending = {a:0 for a in atts}
         for company in companies:
             for app in company.getAppointments():
-                if not app.isEmpty():
-                    prev = attToCompaniesAttending[app.isCoffeeChat()].get(app.attendee, 0)
-                    attToCompaniesAttending[app.isCoffeeChat()][app.attendee] = prev + 1
+                if not app.isEmpty() and app.isCoffeeChat() == isCoffeeChat:
+                    prev = attToCompaniesAttending.get(app.attendee, 0)
+                    attToCompaniesAttending[app.attendee] = prev + 1
 
-        attToNoCompaniesInvited = {
-            isCoffeeChat: {a: a.getNoCompaniesWant(companies, isCoffeeChat) for a in atts}
-            for isCoffeeChat in [False, True]
-        }
+        attToNoCompaniesInvited = {a: a.getNoCompaniesWant(companies, isCoffeeChat) for a in atts}
 
         emptyAppsCache = initEmptyAppsCache(appIntersects)
         # deep copy
@@ -61,10 +74,9 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
             atts = sorted(
                 atts, 
                 key = lambda att: (
-                    attToCompaniesAttending[False][att],
-                    attToCompaniesAttending[True][att],
-                    attToNoCompaniesInvited[False][att],
-                    attToNoCompaniesInvited[True][att],
+                    attToNoMaxRank[att],
+                    attToCompaniesAttending[att],
+                    attToNoCompaniesInvited[att],
                     -len(att.commitments)
                 )
             )
@@ -94,16 +106,23 @@ def run(companies: list[Company], attendees: list[Attendee], conventionTimes: li
 
 
                 if validApps:
-                    app = max(validApps, key=lambda app: (
+                    appMaxKey = lambda app: (
+                        (
                             len(emptyAppsCache[app.timeHash]), 
-                            -(len(app.companyRoom.candidates) if not isCoffeeChat else len(app.companyRoom.coffeeChat.candidates)),
-                            -(len(app.companyRoom.times) if not isCoffeeChat else app.companyRoom.coffeeChat.capacity),
+                            -app.getUtility(newAtt),
+                            -len(app.companyRoom.coffeeChat.candidates),
+                            -app.companyRoom.coffeeChat.capacity,
+                        ) if isCoffeeChat else (
+                            len(emptyAppsCache[app.timeHash]), 
+                            -len(app.companyRoom.candidates),
+                            -len(app.companyRoom.times),
                             -app.getUtility(newAtt)
                         )
-                        # choose the least busy spot with the lowest preference
                     )
+                    app = max(validApps, key=lambda app: appMaxKey(app))
+                        # choose the least busy spot with the lowest preference
                     app.swap(newAtt, appIntersects, None)
-                    attToCompaniesAttending[app.isCoffeeChat()][newAtt] += 1
+                    attToCompaniesAttending[newAtt] += 1
                     updateEmptyAppsCache(emptyAppsCache, app)
                     changed = True
 
