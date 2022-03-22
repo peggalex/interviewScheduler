@@ -1,300 +1,322 @@
-#scheduleCompany, #scheduleAttendee, #scheduleCoffeeChat {
-    max-height: 90vh;
-    overflow-y: scroll;
-    font-size: 0.8rem;
+#scheduleCompany,
+#scheduleAttendee,
+#scheduleCoffeeChat {
+	max-height: 90vh;
+	overflow-y: auto;
+	font-size: 0.8rem;
 }
 
 #schedules {
-    width: 95vw;
-    margin-bottom: 1rem;
+	width: 95vw;
+	margin-bottom: 1rem;
 }
 
 #schedules table {
-    /*width: 4750px;*/
-    border-collapse: collapse;
-    position: relative;
-    white-space: nowrap;
+	/*width: 4750px;*/
+	border-collapse: collapse;
+	position: relative;
+	white-space: nowrap;
 }
 
 #schedules tr {
-    height: 3.25rem;
+	height: 3.25rem;
 }
 
-#schedules td:not(:first-child)+td {
-    border-left: thin solid var(--grey300);
+#schedules td:not(:first-child) + td {
+	border-left: thin solid var(--grey300);
 }
 
 #schedules thead {
-    text-align: center;
-    font-weight: 500;
+	text-align: center;
+	font-weight: 500;
 }
 
-#schedules th:not(#roomNameCol){
-    min-width: 8.5rem;
-    /* must be min-width or wont extend beyond parent container */
+#schedules th:not(#roomNameCol) {
+	min-width: 8.5rem;
+	/* must be min-width or wont extend beyond parent container */
 }
 
-#scheduleCompany .app *, #scheduleCoffeeChat .app * {
-    pointer-events: none;
+#scheduleCompany .app *,
+#scheduleCoffeeChat .app * {
+	pointer-events: none;
 }
 
 tr.fadeRoom {
-    opacity: 0.25;
+	opacity: 0.25;
 }
 
 .removeApp:not(.cc) {
-    background-color: var(--orange300) !important;
-    border: 0.15rem dashed var(--orange400);
+	background-color: var(--orange300) !important;
+	border: 0.15rem dashed var(--orange400);
 }
 
 .removeApp.cc {
-    background-color: var(--pink300) !important;
-    border: 0.15rem dashed var(--pink400);
+	background-color: var(--pink300) !important;
+	border: 0.15rem dashed var(--pink400);
 }
 
 #schedules th {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    background-color: var(--grey200);
-    padding: 0 1rem;
+	position: sticky;
+	top: 0;
+	z-index: 3;
+	background-color: var(--grey200);
+	padding: 0 1rem;
 }
 
 #schedules td:first-child:after {
-    content: " ";
-    border-right: solid thin var(--grey300);
-    right: 0;
-    position: absolute;
-    z-index: 2;
-    top: 0;
-    padding: 0;
-    margin: 0;
-    height: 100%;
+	content: " ";
+	border-right: solid thin var(--grey300);
+	right: 0;
+	position: absolute;
+	z-index: 2;
+	top: 0;
+	padding: 0;
+	margin: 0;
+	height: 100%;
 }
 
 #schedules td {
-    position: relative;
+	position: relative;
 }
 
 #schedules td:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background-color: var(--grey50);
-    padding: 0 1rem;
+	position: sticky;
+	left: 0;
+	z-index: 2;
+	background-color: var(--grey50);
+	padding: 0 1rem;
 }
 
 .app {
-    text-align: center;
-    border-radius: 0.25rem;
-    background-color: var(--emerald400);
-    width: 100%;
-    height: 2.75rem;
-    position: relative;
-    color: white;
-    z-index: 1;
+	text-align: center;
+	border-radius: 0.25rem;
+	background-color: var(--emerald400);
+	width: 100%;
+	height: 2.75rem;
+	position: relative;
+	color: white;
+	z-index: 1;
 }
 
 .appContainer {
-    position: absolute;
-    box-sizing: border-box;
-    top: 0;
-    height: 100%;
-    padding: 0 0.25rem;
+	position: absolute;
+	box-sizing: border-box;
+	top: 0;
+	height: 100%;
+	padding: 0 0.25rem;
 }
 .notSelected .app {
-    background-color: var(--orange400);
+	background-color: var(--orange400);
 }
-.appContainer.notSelected, #scheduleCoffeeChat .appContainer {
-    position: inherit;
-    width: 5.5rem;
+.appContainer.notSelected,
+#scheduleCoffeeChat .appContainer {
+	position: inherit;
+	width: 5.5rem;
 }
 .app.empty {
-    border: dashed thin var(--grey400);
-    background-color: var(--grey200) !important;
-    color: var(--grey400);
+	border: dashed thin var(--grey400);
+	background-color: var(--grey200) !important;
+	color: var(--grey400);
 }
 
 .appLength {
-    position: absolute;
-    font-size: 0.5rem;
-    top: .15rem;
-    right: .15rem;
+	position: absolute;
+	font-size: 0.5rem;
+	top: 0.15rem;
+	right: 0.15rem;
 }
 
 .appAtt {
-    font-weight: 500;
-    text-overflow: ellipsis;
-    width: 75%;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: .65rem;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	width: 75%;
+	overflow: hidden;
+	white-space: nowrap;
+	font-size: 0.65rem;
 }
 
-.appPref, .appLength {
-    font-size: 0.4rem;
-    font-weight: 600;
+.appPref,
+.appLength {
+	font-size: 0.4rem;
+	font-weight: 600;
 }
 
 .appPref {
-    position: absolute;
-    right: 0.15rem;
-    bottom: 0.15rem;
+	position: absolute;
+	right: 0.15rem;
+	bottom: 0.15rem;
 }
-
 
 #scheduleAttendee .appAtt {
-    /*font-size: 0.85rem;*/
+	/*font-size: 0.85rem;*/
 }
 
-.app.empty .appTime, .app.empty .appLength {
-    color: var(--grey400);
+.app.empty .appTime,
+.app.empty .appLength {
+	color: var(--grey400);
 }
 
-.appTime, .appLength, .appPref {
-    color: var(--grey100);
+.appTime,
+.appLength,
+.appPref {
+	color: var(--grey100);
 }
 
 .appTime {
-    font-size: 0.4rem;
+	font-size: 0.4rem;
 }
 
 .appPref {
-    /*position: absolute;
+	/*position: absolute;
     right: 0.15rem;
     bottom: 0.15rem;*/
 }
 
 .appTime {
-    font-weight: 700;
+	font-weight: 700;
 }
 
-#generateButt, #writeScheduleButt {
-    padding: 1rem 3rem;
-    background-color: var(--grey200);
-    border-radius: 0.4rem;
-    color: var(--grey700);
-    border: none;
-    font-weight: bold;
-    font-size: 1rem;
+#generateButt,
+#writeScheduleButt {
+	padding: 1rem 3rem;
+	background-color: var(--grey200);
+	border-radius: 0.4rem;
+	color: var(--grey700);
+	border: none;
+	font-weight: bold;
+	font-size: 1rem;
 }
 
-#generateButt:hover > svg{
-    animation: ease-out 0.5s spinHalf;
+#generateButt:hover > svg {
+	animation: ease-out 0.5s spinHalf;
 }
 
 #writeScheduleButt:hover .editPen {
-    transform-origin: 60% 30%;
-    animation: ease-in-out 0.4s shakePen;
+	transform-origin: 60% 30%;
+	animation: ease-in-out 0.4s shakePen;
 }
 
 @keyframes shakePen {
-    0% { transform: rotate(0deg); }
-    25% { transform: rotate(10deg); }
-    75% { transform: rotate(-10deg); }
-    100% { transform: rotate(0deg); }
-  }
+	0% {
+		transform: rotate(0deg);
+	}
+	25% {
+		transform: rotate(10deg);
+	}
+	75% {
+		transform: rotate(-10deg);
+	}
+	100% {
+		transform: rotate(0deg);
+	}
+}
 
-#generateButt > p, #writeScheduleButt > p {
-    margin: 0;
-    margin-top: -0.2rem;
+#generateButt > p,
+#writeScheduleButt > p {
+	margin: 0;
+	margin-top: -0.2rem;
 }
 
 #writeScheduleButt > svg {
-    stroke-width: .15rem;
+	stroke-width: 0.15rem;
 }
 
 #generateButt > svg {
-    stroke-width: .2rem;
+	stroke-width: 0.2rem;
 }
 
-#generateButt > svg, #writeScheduleButt > svg {
-    width: 1rem;
-    margin-right: .5rem;
-    color: var(--grey600);
+#generateButt > svg,
+#writeScheduleButt > svg {
+	width: 1rem;
+	margin-right: 0.5rem;
+	color: var(--grey600);
 }
 
-#schedulePage .loader{
-    margin-top: 1rem;
+#schedulePage .loader {
+	margin-top: 1rem;
 }
 
 #schedulesStats {
-    font-family: 'Orelega One';
-    color: var(--grey700);
-    font-size: 1.25rem;
+	font-family: "Orelega One";
+	color: var(--grey700);
+	font-size: 1.25rem;
 }
 
 #schedulesStats span {
-    /*font-family: 'Inter';*/
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-    color: var(--grey600);
-    font-size: 1rem;
+	/*font-family: 'Inter';*/
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+		"Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+		"Helvetica Neue", sans-serif;
+	color: var(--grey600);
+	font-size: 1rem;
 }
 
 #schedulesStats p + p {
-    margin-left: 2rem;
+	margin-left: 2rem;
 }
 
 .app.cc {
-    background-color: var(--sky300);
+	background-color: var(--sky300);
 }
 
 .ccIcon > svg {
-    width: 100%;
-    height: 100%;
+	width: 100%;
+	height: 100%;
 }
 
 .ccIcon {
-    position: absolute;
-    top: 0.15rem;
-    left: 0.15rem;
-    width: 0.65rem;
-    height: 0.65rem;
-    display: flex;
+	position: absolute;
+	top: 0.15rem;
+	left: 0.15rem;
+	width: 0.65rem;
+	height: 0.65rem;
+	display: flex;
 }
 
 .notSelected .app.cc {
-    background-color: var(--pink400);
+	background-color: var(--pink400);
 }
 
 tr:nth-child(odd) {
-    background-color: var(--slate50);
+	background-color: var(--slate50);
 }
 
 td.ccRowLabel > * {
-    margin: 0;
+	margin: 0;
 }
 
 p.ccRoomDate {
-    font-size: 0.6rem;
-    padding-top: 0.25rem;
-    color: var(--grey500);
+	font-size: 0.6rem;
+	padding-top: 0.25rem;
+	color: var(--grey500);
 }
 
 .scheduleTableContainer + .scheduleTableContainer {
-    margin-top: 2rem;
+	margin-top: 2rem;
 }
 
-#schedules > h2{
-    width: 100%;
-    text-align: center;
-    margin: 1rem 0rem 0.5rem 0;
-    font-size: 2rem;
+#schedules > h2 {
+	width: 100%;
+	text-align: center;
+	margin: 1rem 0rem 0.5rem 0;
+	font-size: 2rem;
 }
 
 @keyframes spinHalf {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(180deg); }
-  }
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(180deg);
+	}
+}
 
-#schedLoader{
-    position: fixed;
-    z-index: 1000;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(255,255,255,0.5);
+#schedLoader {
+	position: fixed;
+	z-index: 1000;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(255, 255, 255, 0.5);
 }

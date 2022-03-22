@@ -584,7 +584,9 @@ function ScheduleAttendees(
                         }
                         let interval = Interval.fromStr(app.iApp);
 
-                        for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
+                        for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){
+                            console.debug("one", app.roomName, i);
+                        }
 
                         timeToApp[+headings[i]] = timeToApp[+headings[i]] || [];
                         timeToApp[+headings[i]].push(app);

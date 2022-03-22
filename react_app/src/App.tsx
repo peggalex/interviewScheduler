@@ -30,9 +30,11 @@ function App(){
 
     async function updateTableData(){
 		const newTable: TableData  = {};
-        for (let table of tables){
-            newTable[table.name] = await getData(table);
-        }
+		await Promise.all(
+			tables.map(table => getData(table).then(tableData => {
+				newTable[table.name] = tableData;
+			}))
+		);
         setTableData(newTable);
     }
 

@@ -233,7 +233,7 @@ const roomInterviewsTable: Table = new Table(
         type: ColumnType.DATETIME,
         desc: 'must be greater than start time'
     }],
-    true,
+    false,
     [conventionTimesTable, companyRoomsTable]
 );
 
@@ -254,7 +254,7 @@ const roomBreaksTable: Table = new Table(
         }
     ],
     false,
-    [companyRoomsTable]
+    [companyRoomsTable, roomInterviewsTable]
 );
 
 const attendeeCol: IColumn = {
@@ -301,7 +301,7 @@ const attendeePrefsTable: Table = new Table(
         type: ColumnType.INT,
         desc: 'must be positive, the smaller the better'
     }],
-    true,
+    false,
     [attendeeTable, companyRoomsTable]
 );
 
@@ -310,7 +310,7 @@ const interviewCandidatesTable: Table = new Table(
     'InterviewCandidates',
     'This is a list of interview candidates.',
     [roomNameCol, attendeeCol],
-    true,
+    false,
     [companyRoomsTable, roomInterviewsTable, attendeeTable]
 );
 

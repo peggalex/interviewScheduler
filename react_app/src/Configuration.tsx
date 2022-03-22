@@ -20,11 +20,8 @@ function FormatColumn(col: string, colType: ColumnType){
 
 const getLocalStorageKey = (table: Table) => `filename|${table.name}`;
 const getDefaultFilename = (table: Table, tableData: TableData) => {
-    if (!table.isLoaded(tableData)){
-        return "";
-    }
-    const localStorageKey = getLocalStorageKey(table);
-    return localStorage.getItem(localStorageKey) ?? "<unknown filename>";
+    const savedFileName = localStorage.getItem(getLocalStorageKey(table));
+    return savedFileName ?? (table.isLoaded(tableData) ? "<unknown filename>" : "");
 }
 
 function FileUpload({table, tableData, updateTableData, isLoading, setIsLoading}: {
@@ -168,7 +165,7 @@ function TableConfig(
             <div className='tableChevronContainer'>
                 {isExpanded ? Icons.ChevronDown : Icons.ChevronUp}
             </div>
-            <h2 className='centerAll'>{table.name}</h2>
+            <h2 className='centerAll' title={`${table.name}${table.mandatory ? " (mandatory)" : ""}`}>{table.name}{table.mandatory && " *"}</h2>
             <div className='spacer'></div>
             <div className='tableAvailability centerAll'>
                 {table.isDependenciesLoaded(tableData) ? 
