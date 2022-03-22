@@ -196,7 +196,6 @@ function ScheduleCompany(
                 `Are you sure you want to move ${getAppStr(att2, otherTimeStr)} out of the schedule (to the extra column) for ${room}?` : 
                 `Are you sure you want to swap ${getAppStr(att2, otherTimeStr)} with ${getAppStr(att1, timeStr)} for ${room}?`
             )){
-            console.log('hi');
             swapFunc(false, app1, att1, app2, att2);
         }
     }
@@ -413,7 +412,6 @@ function ScheduleCoffeeChat(
                 `Are you sure you want to move ${getAppStr(att2, otherTimeStr)} out of the schedule (to the extra column) for ${room}?` : 
                 `Are you sure you want to swap ${getAppStr(att2, otherTimeStr)} with ${getAppStr(att1, timeStr)} for ${room}?`
             )){
-            console.log('hi');
             swapFunc(true, app1, att1, app2, att2);
         }
     }
@@ -584,9 +582,7 @@ function ScheduleAttendees(
                         }
                         let interval = Interval.fromStr(app.iApp);
 
-                        for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){
-                            console.debug("one", app.roomName, i);
-                        }
+                        for (;i < headings.length && addHours(headings[i], 1) <= interval.start; i++){}
 
                         timeToApp[+headings[i]] = timeToApp[+headings[i]] || [];
                         timeToApp[+headings[i]].push(app);
